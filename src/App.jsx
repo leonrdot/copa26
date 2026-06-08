@@ -6,54 +6,54 @@ import { ref, onValue, set } from "firebase/database";
 //  DATA
 // ═══════════════════════════════════════════════════════
 const TEAMS = {
-  MEX: { name: "México",          flag: "🇲🇽" },
-  RSA: { name: "África do Sul",   flag: "🇿🇦" },
-  KOR: { name: "Coreia do Sul",   flag: "🇰🇷" },
-  CZE: { name: "Tchéquia",        flag: "🇨🇿" },
-  CAN: { name: "Canadá",          flag: "🇨🇦" },
-  BIH: { name: "Bósnia-Herz.",    flag: "🇧🇦" },
-  QAT: { name: "Catar",           flag: "🇶🇦" },
-  SUI: { name: "Suíça",           flag: "🇨🇭" },
-  BRA: { name: "Brasil",          flag: "🇧🇷" },
-  MAR: { name: "Marrocos",        flag: "🇲🇦" },
-  HAI: { name: "Haiti",           flag: "🇭🇹" },
-  SCO: { name: "Escócia",         flag: "🏴󠁧󠁢󠁳󠁣󠁴󠁿" },
-  USA: { name: "EUA",             flag: "🇺🇸" },
-  PAR: { name: "Paraguai",        flag: "🇵🇾" },
-  AUS: { name: "Austrália",       flag: "🇦🇺" },
-  TUR: { name: "Turquia",         flag: "🇹🇷" },
-  GER: { name: "Alemanha",        flag: "🇩🇪" },
-  CUW: { name: "Curaçao",         flag: "🇨🇼" },
-  CIV: { name: "Costa do Marfim", flag: "🇨🇮" },
-  ECU: { name: "Equador",         flag: "🇪🇨" },
-  NED: { name: "Holanda",         flag: "🇳🇱" },
-  JPN: { name: "Japão",           flag: "🇯🇵" },
-  SWE: { name: "Suécia",          flag: "🇸🇪" },
-  TUN: { name: "Tunísia",         flag: "🇹🇳" },
-  BEL: { name: "Bélgica",         flag: "🇧🇪" },
-  EGY: { name: "Egito",           flag: "🇪🇬" },
-  IRN: { name: "Irã",             flag: "🇮🇷" },
-  NZL: { name: "Nova Zelândia",   flag: "🇳🇿" },
-  ESP: { name: "Espanha",         flag: "🇪🇸" },
-  CPV: { name: "Cabo Verde",      flag: "🇨🇻" },
-  KSA: { name: "Arábia Saudita",  flag: "🇸🇦" },
-  URU: { name: "Uruguai",         flag: "🇺🇾" },
-  FRA: { name: "França",          flag: "🇫🇷" },
-  SEN: { name: "Senegal",         flag: "🇸🇳" },
-  IRQ: { name: "Iraque",          flag: "🇮🇶" },
-  NOR: { name: "Noruega",         flag: "🇳🇴" },
-  ARG: { name: "Argentina",       flag: "🇦🇷" },
-  ALG: { name: "Argélia",         flag: "🇩🇿" },
-  AUT: { name: "Áustria",         flag: "🇦🇹" },
-  JOR: { name: "Jordânia",        flag: "🇯🇴" },
-  POR: { name: "Portugal",        flag: "🇵🇹" },
-  COD: { name: "Congo RD",        flag: "🇨🇩" },
-  UZB: { name: "Uzbequistão",     flag: "🇺🇿" },
-  COL: { name: "Colômbia",        flag: "🇨🇴" },
-  ENG: { name: "Inglaterra",      flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
-  CRO: { name: "Croácia",         flag: "🇭🇷" },
-  GHA: { name: "Gana",            flag: "🇬🇭" },
-  PAN: { name: "Panamá",          flag: "🇵🇦" },
+  MEX: { name: "México",          cc: "mx"     },
+  RSA: { name: "África do Sul",   cc: "za"     },
+  KOR: { name: "Coreia do Sul",   cc: "kr"     },
+  CZE: { name: "Tchéquia",        cc: "cz"     },
+  CAN: { name: "Canadá",          cc: "ca"     },
+  BIH: { name: "Bósnia-Herz.",    cc: "ba"     },
+  QAT: { name: "Catar",           cc: "qa"     },
+  SUI: { name: "Suíça",           cc: "ch"     },
+  BRA: { name: "Brasil",          cc: "br"     },
+  MAR: { name: "Marrocos",        cc: "ma"     },
+  HAI: { name: "Haiti",           cc: "ht"     },
+  SCO: { name: "Escócia",         cc: "gb-sct" },
+  USA: { name: "EUA",             cc: "us"     },
+  PAR: { name: "Paraguai",        cc: "py"     },
+  AUS: { name: "Austrália",       cc: "au"     },
+  TUR: { name: "Turquia",         cc: "tr"     },
+  GER: { name: "Alemanha",        cc: "de"     },
+  CUW: { name: "Curaçao",         cc: "cw"     },
+  CIV: { name: "Costa do Marfim", cc: "ci"     },
+  ECU: { name: "Equador",         cc: "ec"     },
+  NED: { name: "Holanda",         cc: "nl"     },
+  JPN: { name: "Japão",           cc: "jp"     },
+  SWE: { name: "Suécia",          cc: "se"     },
+  TUN: { name: "Tunísia",         cc: "tn"     },
+  BEL: { name: "Bélgica",         cc: "be"     },
+  EGY: { name: "Egito",           cc: "eg"     },
+  IRN: { name: "Irã",             cc: "ir"     },
+  NZL: { name: "Nova Zelândia",   cc: "nz"     },
+  ESP: { name: "Espanha",         cc: "es"     },
+  CPV: { name: "Cabo Verde",      cc: "cv"     },
+  KSA: { name: "Arábia Saudita",  cc: "sa"     },
+  URU: { name: "Uruguai",         cc: "uy"     },
+  FRA: { name: "França",          cc: "fr"     },
+  SEN: { name: "Senegal",         cc: "sn"     },
+  IRQ: { name: "Iraque",          cc: "iq"     },
+  NOR: { name: "Noruega",         cc: "no"     },
+  ARG: { name: "Argentina",       cc: "ar"     },
+  ALG: { name: "Argélia",         cc: "dz"     },
+  AUT: { name: "Áustria",         cc: "at"     },
+  JOR: { name: "Jordânia",        cc: "jo"     },
+  POR: { name: "Portugal",        cc: "pt"     },
+  COD: { name: "Congo RD",        cc: "cd"     },
+  UZB: { name: "Uzbequistão",     cc: "uz"     },
+  COL: { name: "Colômbia",        cc: "co"     },
+  ENG: { name: "Inglaterra",      cc: "gb-eng" },
+  CRO: { name: "Croácia",         cc: "hr"     },
+  GHA: { name: "Gana",            cc: "gh"     },
+  PAN: { name: "Panamá",          cc: "pa"     },
 };
 
 const GROUPS_RAW = [
@@ -150,6 +150,61 @@ function fmtTime(ts) {
   const day = d.toLocaleDateString("pt-BR",{ weekday:"short", day:"2-digit", month:"2-digit", timeZone:"America/Sao_Paulo" });
   const time = d.toLocaleTimeString("pt-BR",{ hour:"2-digit", minute:"2-digit", timeZone:"America/Sao_Paulo" });
   return `${day} ${time}`;
+}
+
+// flag image from flagcdn.com — renders correctly on all devices
+function FlagImg({ code, size=48 }) {
+  const team = TEAMS[code];
+  if (!team) return null;
+  const w = size, w2 = size * 2;
+  return (
+    <img
+      src={`https://flagcdn.com/w${w}/${team.cc}.png`}
+      srcSet={`https://flagcdn.com/w${w2}/${team.cc}.png 2x`}
+      alt={team.name}
+      loading="lazy"
+      style={{ width:w, height:"auto", display:"block", borderRadius:3 }}
+    />
+  );
+}
+
+// up/down stepper for score input
+function ScoreStepper({ value, onChange, disabled }) {
+  const n = (value === "" || value === undefined || value === null) ? null : parseInt(value);
+  const btnBase = {
+    border:"none", borderRadius:6, width:36, height:22, cursor:"pointer",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    fontSize:12, transition:"all 0.15s", userSelect:"none",
+  };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+      <button
+        onClick={() => !disabled && onChange(n === null ? 0 : n + 1)}
+        style={{ ...btnBase, background: disabled ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.12)", color: disabled ? "#334" : "#ccd" }}
+      >▲</button>
+      <div style={{
+        background:"rgba(255,255,255,0.09)", border:"1px solid rgba(255,255,255,0.14)",
+        borderRadius:8, width:42, height:40,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        fontFamily:"'Bebas Neue',sans-serif", fontSize:28,
+        color: n !== null ? "#fff" : "#334", letterSpacing:1,
+      }}>
+        {n !== null ? n : "–"}
+      </div>
+      <button
+        onClick={() => !disabled && n !== null && n > 0 && onChange(n - 1)}
+        style={{ ...btnBase, background: (disabled || n === null || n <= 0) ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.12)", color: (disabled || n === null || n <= 0) ? "#334" : "#ccd" }}
+      >▼</button>
+    </div>
+  );
+}
+
+// derive result from scores — prevents contradicting picks
+function deriveResult(h, a) {
+  if (h === "" || h === undefined || h === null || a === "" || a === undefined || a === null) return null;
+  const hi = parseInt(h), ai = parseInt(a);
+  if (isNaN(hi) || isNaN(ai)) return null;
+  return hi > ai ? "H" : hi < ai ? "A" : "D";
 }
 
 function Avatar({ participant, size=32 }) {
@@ -504,7 +559,7 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
         <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:S.gold, marginRight:4 }}>GRUPO {activeGroup}</span>
         {groupTeams.map(code => (
           <span key={code} style={{ background:"rgba(255,255,255,0.07)", borderRadius:20, padding:"4px 10px", fontSize:14, display:"flex", alignItems:"center", gap:6 }}>
-            <span style={{ fontSize:22 }}>{TEAMS[code].flag}</span>
+            <FlagImg code={code} size={24} />
             <span style={{ fontSize:12 }}>{TEAMS[code].name}</span>
           </span>
         ))}
@@ -533,32 +588,49 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
     setAwayInput(pred?.away ?? "");
   }, [pred, match.id]);
 
-  const isLive  = liveScore?.status === "live";
-  const isFinal = liveScore?.status === "final";
-  const isLocked = now >= match.startTime; // trava quando o jogo começa
+  const isLive   = liveScore?.status === "live";
+  const isFinal  = liveScore?.status === "final";
+  const isLocked = now >= match.startTime;
+  const canEdit  = !disabled && !isLocked;
 
   const actualResult = (isFinal||isLive)
     ? (liveScore.homeScore > liveScore.awayScore ? "H" : liveScore.homeScore < liveScore.awayScore ? "A" : "D")
     : null;
 
-  const canEdit = !disabled && !isLocked;
+  // derive result from current score inputs
+  const scoreDerived = deriveResult(homeInput, awayInput);
+
+  function handleScore(who, val) {
+    const v = val === "" ? "" : Math.max(0, typeof val === "number" ? val : parseInt(val)||0);
+    const newHome = who === "home" ? v : homeInput;
+    const newAway = who === "away" ? v : awayInput;
+    if (who === "home") setHomeInput(v); else setAwayInput(v);
+    const derived = deriveResult(newHome, newAway);
+    onPred(
+      derived || pred?.result || undefined,
+      newHome !== "" ? parseInt(newHome) : undefined,
+      newAway !== "" ? parseInt(newAway) : undefined,
+    );
+  }
 
   function handleResult(r) {
     if (!canEdit) return;
-    onPred(r, homeInput !== "" ? parseInt(homeInput) : undefined, awayInput !== "" ? parseInt(awayInput) : undefined);
-  }
-  function handleScore(who, val) {
-    const v = val === "" ? "" : Math.max(0, parseInt(val)||0);
-    if (who==="home") {
-      setHomeInput(v);
-      if (pred?.result) onPred(pred.result, v !== "" ? v : undefined, awayInput !== "" ? parseInt(awayInput) : undefined);
+    // If existing scores contradict the chosen result, wipe them
+    if (scoreDerived && scoreDerived !== r) {
+      setHomeInput(""); setAwayInput("");
+      onPred(r, undefined, undefined);
     } else {
-      setAwayInput(v);
-      if (pred?.result) onPred(pred.result, homeInput !== "" ? parseInt(homeInput) : undefined, v !== "" ? v : undefined);
+      onPred(r, homeInput !== "" ? parseInt(homeInput) : undefined, awayInput !== "" ? parseInt(awayInput) : undefined);
     }
   }
 
   const otherPreds = participants.filter(p => predictions[p.id]?.[match.id]).map(p => ({ ...p, pred: predictions[p.id][match.id] }));
+
+  const resultOpts = [
+    { code:"H", label:`Vitória`, flag: match.home, color:"#3498db" },
+    { code:"D", label:"Empate",  flag: null,        color:"#f39c12" },
+    { code:"A", label:`Vitória`, flag: match.away,  color:"#e74c3c" },
+  ];
 
   return (
     <div style={{
@@ -569,105 +641,98 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
     }}>
       {isLive && <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,#2ecc71,#1abc9c)" }} />}
 
-      {/* Match time / status */}
-      <div style={{ display:"flex", justifyContent:"center", marginBottom:10 }}>
+      {/* Status bar */}
+      <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
         {isLive ? (
-          <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(46,204,113,0.2)", color:"#2ecc71" }}>
-            🔴 AO VIVO {liveScore.displayClock}
-          </span>
+          <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(46,204,113,0.2)", color:"#2ecc71" }}>🔴 AO VIVO {liveScore.displayClock}</span>
         ) : isFinal ? (
           <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(255,255,255,0.08)", color:"#556" }}>⚫ ENCERRADO</span>
         ) : isLocked ? (
           <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(231,76,60,0.12)", color:"#e74c3c" }}>🔒 APOSTAS ENCERRADAS</span>
         ) : (
-          <span style={{ fontSize:10, color:"#667", padding:"3px 8px", borderRadius:10, background:"rgba(255,255,255,0.04)", letterSpacing:0.5 }}>
-            ⏱ {fmtTime(match.startTime)}
-          </span>
+          <span style={{ fontSize:10, color:"#667", padding:"3px 8px", borderRadius:10, background:"rgba(255,255,255,0.04)", letterSpacing:0.5 }}>⏱ {fmtTime(match.startTime)}</span>
         )}
       </div>
 
       {/* Teams + score */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:12, marginBottom:14 }}>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:48, lineHeight:1, marginBottom:6 }}>{home.flag}</div>
-          <div style={{ fontSize:13, fontWeight:700, lineHeight:1.2 }}>{home.name}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:8, marginBottom:14 }}>
+        {/* Home */}
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+          <FlagImg code={match.home} size={56} />
+          <div style={{ fontSize:13, fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{home.name}</div>
         </div>
 
-        <div style={{ textAlign:"center", minWidth:90 }}>
+        {/* Score */}
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
           {(isLive||isFinal) ? (
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:isLive?S.green:S.silver, letterSpacing:2 }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:36, color:isLive?S.green:S.silver, letterSpacing:3, lineHeight:1 }}>
               {liveScore.homeScore} – {liveScore.awayScore}
             </div>
           ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <input type="number" min="0" max="99" value={homeInput} onChange={e => handleScore("home", e.target.value)} disabled={!canEdit}
-                style={{ width:40, textAlign:"center", background: canEdit ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)", border:`1px solid ${canEdit ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.06)"}`, borderRadius:6, color: canEdit ? "#fff" : "#556", padding:"6px 0", fontFamily:"'Bebas Neue',sans-serif", fontSize:22, outline:"none" }} />
-              <span style={{ color:"#445", fontSize:18 }}>–</span>
-              <input type="number" min="0" max="99" value={awayInput} onChange={e => handleScore("away", e.target.value)} disabled={!canEdit}
-                style={{ width:40, textAlign:"center", background: canEdit ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)", border:`1px solid ${canEdit ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.06)"}`, borderRadius:6, color: canEdit ? "#fff" : "#556", padding:"6px 0", fontFamily:"'Bebas Neue',sans-serif", fontSize:22, outline:"none" }} />
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <ScoreStepper value={homeInput} onChange={v => handleScore("home", v)} disabled={!canEdit} />
+              <span style={{ color:"#334", fontSize:20, fontWeight:700, marginBottom:0 }}>×</span>
+              <ScoreStepper value={awayInput} onChange={v => handleScore("away", v)} disabled={!canEdit} />
             </div>
-          )}
-          {!isLive && !isFinal && (
-            <div style={{ fontSize:10, color:"#445", marginTop:4, letterSpacing:1 }}>PLACAR</div>
           )}
         </div>
 
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:48, lineHeight:1, marginBottom:6 }}>{away.flag}</div>
-          <div style={{ fontSize:13, fontWeight:700, lineHeight:1.2 }}>{away.name}</div>
+        {/* Away */}
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+          <FlagImg code={match.away} size={56} />
+          <div style={{ fontSize:13, fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{away.name}</div>
         </div>
       </div>
 
       {/* Result buttons */}
       {!isLocked && !isFinal && !isLive ? (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
-          {[
-            { code:"H", label:`Vitória ${home.flag}`, color:"#3498db" },
-            { code:"D", label:"Empate ⚖️",            color:"#f39c12" },
-            { code:"A", label:`Vitória ${away.flag}`, color:"#e74c3c" },
-          ].map(opt => {
+          {resultOpts.map(opt => {
             const sel = pred?.result === opt.code;
+            // grey out options that contradict the entered score
+            const blocked = !!scoreDerived && scoreDerived !== opt.code;
             return (
-              <button key={opt.code} onClick={() => handleResult(opt.code)} disabled={!canEdit} style={{
+              <button key={opt.code} onClick={() => handleResult(opt.code)} disabled={!canEdit || blocked} style={{
                 background: sel ? opt.color : "rgba(255,255,255,0.05)",
-                border:`1.5px solid ${sel ? opt.color : "rgba(255,255,255,0.1)"}`,
-                borderRadius:8, padding:"9px 4px", cursor: canEdit ? "pointer" : "default",
-                color: sel ? "#fff" : "#667", fontSize:11, fontWeight:700, letterSpacing:0.3, transition:"all 0.15s",
+                border:`1.5px solid ${sel ? opt.color : blocked ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)"}`,
+                borderRadius:8, padding:"8px 4px", cursor: (canEdit && !blocked) ? "pointer" : "default",
+                color: sel ? "#fff" : blocked ? "#333" : "#778",
+                fontSize:11, fontWeight:700, transition:"all 0.15s",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:4,
+                opacity: blocked ? 0.35 : 1,
               }}>
-                {opt.label}
+                {opt.flag
+                  ? <><FlagImg code={opt.flag} size={16} /> {opt.label}</>
+                  : `⚖️ ${opt.label}`}
               </button>
             );
           })}
         </div>
       ) : (isFinal||isLive) ? (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
-          {[
-            { code:"H", label:`Vitória ${home.flag}`, color:"#3498db" },
-            { code:"D", label:"Empate ⚖️",            color:"#f39c12" },
-            { code:"A", label:`Vitória ${away.flag}`, color:"#e74c3c" },
-          ].map(opt => {
+          {resultOpts.map(opt => {
             const sel = pred?.result === opt.code;
             const correct = actualResult === opt.code;
-            const wrong = sel && !correct;
             return (
               <button key={opt.code} disabled style={{
                 background: sel ? opt.color : correct ? `${opt.color}22` : "rgba(255,255,255,0.04)",
-                border:`1.5px solid ${sel || correct ? opt.color : "rgba(255,255,255,0.08)"}`,
-                borderRadius:8, padding:"9px 4px", cursor:"default",
-                color: sel ? "#fff" : correct ? opt.color : "#445", fontSize:11, fontWeight:700, letterSpacing:0.3, position:"relative",
+                border:`1.5px solid ${(sel||correct) ? opt.color : "rgba(255,255,255,0.08)"}`,
+                borderRadius:8, padding:"8px 4px", cursor:"default",
+                color: sel ? "#fff" : correct ? opt.color : "#445",
+                fontSize:11, fontWeight:700, position:"relative",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:4,
               }}>
-                {opt.label}
-                {wrong   && <span style={{position:"absolute",top:2,right:5,fontSize:10}}>✗</span>}
-                {sel && correct && <span style={{position:"absolute",top:2,right:5,fontSize:10,color:"#2ecc71"}}>✓</span>}
+                {opt.flag ? <><FlagImg code={opt.flag} size={14} /> {opt.label}</> : `⚖️ ${opt.label}`}
+                {sel && !correct && <span style={{position:"absolute",top:2,right:5,fontSize:9}}>✗</span>}
+                {sel && correct  && <span style={{position:"absolute",top:2,right:5,fontSize:9,color:"#2ecc71"}}>✓</span>}
               </button>
             );
           })}
         </div>
       ) : pred?.result ? (
-        // Locked with a prediction made
         <div style={{ display:"flex", justifyContent:"center" }}>
           <span style={{ background:"rgba(255,255,255,0.06)", borderRadius:8, padding:"8px 20px", fontSize:12, color:"#778" }}>
-            Palpite registrado: {pred.result==="H" ? `${home.flag} ${home.name}` : pred.result==="A" ? `${away.flag} ${away.name}` : "Empate ⚖️"}
+            Palpite: {pred.result==="H" ? home.name : pred.result==="A" ? away.name : "Empate"}
             {pred.home !== undefined && ` — ${pred.home}×${pred.away}`}
           </span>
         </div>
@@ -679,12 +744,12 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
       {otherPreds.length > 0 && (
         <div style={{ marginTop:10, display:"flex", gap:4, flexWrap:"wrap" }}>
           {otherPreds.map(p => (
-            <div key={p.id} title={`${p.name}: ${p.pred.result==="H"?home.name:p.pred.result==="A"?away.name:"Empate"}${p.pred.home!==undefined?` (${p.pred.home}–${p.pred.away})`:""}`}
-              style={{ display:"flex", alignItems:"center", gap:4, background:"rgba(255,255,255,0.05)", borderRadius:20, padding:"3px 8px", fontSize:11, borderLeft:`3px solid ${p.color}` }}>
+            <div key={p.id}
+              style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.05)", borderRadius:20, padding:"3px 8px", fontSize:11, borderLeft:`3px solid ${p.color}` }}>
               <span style={{ fontWeight:700, color:p.color, fontSize:10 }}>{initials(p.name)}</span>
               <span style={{ color:"#778" }}>
-                {p.pred.result==="H"?home.flag:p.pred.result==="A"?away.flag:"⚖️"}
-                {p.pred.home!==undefined&&` ${p.pred.home}–${p.pred.away}`}
+                {p.pred.result==="H" ? home.name : p.pred.result==="A" ? away.name : "⚖️ Empate"}
+                {p.pred.home !== undefined && ` ${p.pred.home}–${p.pred.away}`}
               </span>
             </div>
           ))}
@@ -831,10 +896,7 @@ function BracketTab({ bracket, saveBracket }) {
 }
 
 function BracketCard({ match }) {
-  const home = match.home ? TEAMS[match.home] : null;
-  const away = match.away ? TEAMS[match.away] : null;
-  const hasResult = match.homeScore !== "" && match.homeScore !== null && match.homeScore !== undefined;
-
+  const hasScore = match.homeScore !== "" && match.homeScore !== null && match.homeScore !== undefined;
   return (
     <div style={{
       background: match.winner ? "rgba(232,184,75,0.06)" : "rgba(255,255,255,0.05)",
@@ -843,21 +905,24 @@ function BracketCard({ match }) {
       display:"flex", flexDirection:"column", justifyContent:"space-around",
       padding:"3px 7px", transition:"all 0.15s",
     }}>
-      <BracketTeamRow team={home} score={hasResult ? match.homeScore : null} isWinner={match.winner==="home"} />
+      <BracketTeamRow teamCode={match.home||null} score={hasScore ? match.homeScore : null} isWinner={match.winner==="home"} />
       <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"0 -7px" }} />
-      <BracketTeamRow team={away} score={hasResult ? match.awayScore : null} isWinner={match.winner==="away"} />
+      <BracketTeamRow teamCode={match.away||null} score={hasScore ? match.awayScore : null} isWinner={match.winner==="away"} />
     </div>
   );
 }
 
-function BracketTeamRow({ team, score, isWinner }) {
+function BracketTeamRow({ teamCode, score, isWinner }) {
+  const team = teamCode ? TEAMS[teamCode] : null;
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-      <span style={{ fontSize:14, lineHeight:1 }}>{team ? team.flag : "🏳️"}</span>
+    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+      {team
+        ? <FlagImg code={teamCode} size={20} />
+        : <div style={{ width:20, height:14, background:"rgba(255,255,255,0.06)", borderRadius:2 }} />}
       <span style={{ fontSize:9, flex:1, color: isWinner ? "#fff" : "#667", fontWeight: isWinner ? 700 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
         {team ? team.name : "A definir"}
       </span>
-      {score !== null && score !== undefined && (
+      {score !== null && score !== undefined && score !== "" && (
         <span style={{ fontSize:13, fontFamily:"'Bebas Neue',sans-serif", color: isWinner ? S.gold : "#556", minWidth:14, textAlign:"right" }}>
           {score}
         </span>
@@ -1030,7 +1095,7 @@ function TeamPicker({ value, onPick, highlight, search, setSearch, filtered }) {
                 fontSize:12, fontFamily:"'Nunito',sans-serif",
                 display:"flex", alignItems:"center", gap:6,
               }}>
-                <span style={{ fontSize:20 }}>{team.flag}</span>
+                <FlagImg code={code} size={24} />
                 <span style={{ fontWeight: value===code ? 700 : 400 }}>{team.name}</span>
               </button>
             ))}
