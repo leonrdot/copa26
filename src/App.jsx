@@ -152,18 +152,16 @@ function fmtTime(ts) {
   return `${day} ${time}`;
 }
 
-// flag image from flagcdn.com — renders correctly on all devices
+// flag image from flagcdn.com (SVG — scales to any size, no broken URLs)
 function FlagImg({ code, size=48 }) {
   const team = TEAMS[code];
   if (!team) return null;
-  const w = size, w2 = size * 2;
   return (
     <img
-      src={`https://flagcdn.com/w${w}/${team.cc}.png`}
-      srcSet={`https://flagcdn.com/w${w2}/${team.cc}.png 2x`}
+      src={`https://flagcdn.com/${team.cc}.svg`}
       alt={team.name}
       loading="lazy"
-      style={{ width:w, height:"auto", display:"block", borderRadius:3 }}
+      style={{ width:size, height:"auto", display:"block", borderRadius:3 }}
     />
   );
 }
