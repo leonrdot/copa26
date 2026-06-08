@@ -256,7 +256,7 @@ function useIsMobile() {
 // ═══════════════════════════════════════════════════════
 export default function BolaoApp() {
   const [tab, setTab]           = useState("grupos");
-  const [activePid, setActivePid] = useState(null);
+  const [activePid, setActivePid] = useState(() => localStorage.getItem("bolao_activePid"));
   const [activeGroup, setActiveGroup] = useState("A");
   const [liveScores, setLiveScores]   = useState({});
   const [apiStatus, setApiStatus]     = useState("idle");
@@ -282,11 +282,11 @@ export default function BolaoApp() {
     document.head.appendChild(link);
   }, []);
 
+  // Persist chosen identity across sessions
   useEffect(() => {
-    if (p_ready && Array.isArray(participants) && participants.length > 0 && !activePid) {
-      setActivePid(participants[0].id);
-    }
-  }, [p_ready, participants]); // eslint-disable-line
+    if (activePid) localStorage.setItem("bolao_activePid", activePid);
+    else localStorage.removeItem("bolao_activePid");
+  }, [activePid]);
 
   useEffect(() => {
     fetchLiveScores();
@@ -349,6 +349,13 @@ export default function BolaoApp() {
     .sort((a,b) => b.pts - a.pts || b.correct - a.correct || b.preds - a.preds);
 
   const activePart = parts.find(p => p.id === activePid);
+  const showGate = loaded && !parts.find(p => p.id === activePid);
+
+  function handleGateAdd(name, color) {
+    const id = Date.now().toString();
+    saveParticipants([...parts, { id, name, color }]);
+    setActivePid(id);
+  }
 
   if (!loaded) {
     return (
@@ -360,6 +367,13 @@ export default function BolaoApp() {
 
   return (
     <div style={{ minHeight:"100vh", background:S.bg, color:"#e8eaf0", fontFamily:"'Nunito',sans-serif" }}>
+      {showGate && (
+        <IdentityGate
+          participants={parts}
+          onSelect={setActivePid}
+          onAdd={handleGateAdd}
+        />
+      )}
       <Header activePart={activePart} participants={parts} activePid={activePid} setActivePid={setActivePid} apiStatus={apiStatus} fetchLiveScores={fetchLiveScores} />
       <TabBar tab={tab} setTab={setTab} />
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
@@ -369,6 +383,112 @@ export default function BolaoApp() {
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicks={saveExtraPicks} />}
         {tab==="participantes" && <ParticipantesTab participants={parts} saveParticipants={saveParticipants} activePid={activePid} setActivePid={setActivePid} />}
       </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+//  IDENTITY GATE
+// ═══════════════════════════════════════════════════════
+function IdentityGate({ participants, onSelect, onAdd }) {
+  const [creating, setCreating] = useState(participants.length === 0);
+  const [name, setName]   = useState("");
+  const [color, setColor] = useState(COLORS[participants.length % COLORS.length]);
+
+  function handleAdd() {
+    if (!name.trim()) return;
+    onAdd(name.trim(), color);
+  }
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:S.bg, zIndex:500,
+      display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", padding:"24px 20px", overflowY:"auto",
+    }}>
+      <div style={{ fontSize:52, marginBottom:6 }}>🏆</div>
+      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:S.gold, letterSpacing:4, marginBottom:2 }}>BOLÃO COPA 2026</div>
+      <div style={{ fontSize:11, color:"#445", letterSpacing:2, marginBottom:32 }}>EUA · CANADÁ · MÉXICO</div>
+
+      {!creating ? (
+        <div style={{ width:"100%", maxWidth:420 }}>
+          <div style={{ fontWeight:700, fontSize:20, textAlign:"center", marginBottom:6 }}>Quem é você?</div>
+          <div style={{ fontSize:13, color:"#556", textAlign:"center", marginBottom:20 }}>Toque no seu nome para entrar</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+            {participants.map(p => (
+              <button key={p.id} onClick={() => onSelect(p.id)} style={{
+                background:`rgba(${hexToRgb(p.color)},0.1)`,
+                border:`2px solid ${p.color}55`,
+                borderRadius:14, padding:"18px 10px",
+                cursor:"pointer", transition:"border-color 0.15s",
+                display:"flex", flexDirection:"column", alignItems:"center", gap:10,
+              }}>
+                <Avatar participant={p} size={52} />
+                <span style={{ color:"#e8eaf0", fontWeight:700, fontSize:14 }}>{p.name}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setCreating(true)} style={{
+            width:"100%", background:"rgba(255,255,255,0.05)",
+            border:"1px solid rgba(255,255,255,0.1)", borderRadius:10,
+            padding:"12px 0", color:"#667", cursor:"pointer",
+            fontFamily:"'Nunito',sans-serif", fontSize:13, fontWeight:600,
+          }}>
+            Sou novo por aqui →
+          </button>
+        </div>
+      ) : (
+        <div style={{ ...S.card, width:"100%", maxWidth:360 }}>
+          <div style={{ fontWeight:700, fontSize:16, color:S.gold, marginBottom:16 }}>
+            {participants.length === 0 ? "Criar o primeiro perfil" : "Criar perfil"}
+          </div>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            placeholder="Seu nome..."
+            autoFocus
+            maxLength={24}
+            style={{
+              width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)",
+              borderRadius:8, color:"#fff", padding:"11px 14px", fontSize:15,
+              fontFamily:"'Nunito',sans-serif", boxSizing:"border-box", outline:"none", marginBottom:12,
+            }}
+          />
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
+            {COLORS.map(c => (
+              <button key={c} onClick={() => setColor(c)} style={{
+                width:30, height:30, borderRadius:"50%", background:c,
+                border: color===c ? "3px solid #fff" : "2px solid transparent",
+                cursor:"pointer", transition:"border 0.1s",
+              }} />
+            ))}
+          </div>
+          {name.trim() && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, padding:"8px 10px", background:"rgba(255,255,255,0.04)", borderRadius:8 }}>
+              <Avatar participant={{ name, color }} size={36} />
+              <span style={{ fontSize:14, fontWeight:600 }}>{name}</span>
+            </div>
+          )}
+          <button onClick={handleAdd} disabled={!name.trim()} style={{
+            width:"100%", background: name.trim() ? S.gold : "rgba(255,255,255,0.06)",
+            color: name.trim() ? "#080c18" : "#556", border:"none",
+            borderRadius:8, padding:"12px 0", cursor: name.trim() ? "pointer" : "default",
+            fontFamily:"'Nunito',sans-serif", fontWeight:700, fontSize:15,
+            marginBottom: participants.length > 0 ? 8 : 0, transition:"all 0.2s",
+          }}>
+            Entrar
+          </button>
+          {participants.length > 0 && (
+            <button onClick={() => setCreating(false)} style={{
+              width:"100%", background:"none", border:"none", color:"#556",
+              cursor:"pointer", fontSize:12, fontFamily:"'Nunito',sans-serif", padding:"6px 0",
+            }}>
+              ← Voltar
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
