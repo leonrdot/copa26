@@ -241,6 +241,16 @@ function useFirebaseValue(path, defaultValue) {
   return [value, save, ready];
 }
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 520);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 520);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return mobile;
+}
+
 // ═══════════════════════════════════════════════════════
 //  MAIN APP
 // ═══════════════════════════════════════════════════════
@@ -434,6 +444,8 @@ function TabBar({ tab, setTab }) {
 // ═══════════════════════════════════════════════════════
 function RankingTab({ ranking, participants }) {
   const medals = ["🥇","🥈","🥉"];
+  const mobile = useIsMobile();
+  const cols = mobile ? "32px 1fr 64px" : "40px 1fr 80px 72px 72px";
   if (participants.length === 0) {
     return <EmptyState icon="👥" title="Nenhum participante ainda" subtitle='Vá em "Participantes" para adicionar os jogadores do bolão.' />;
   }
@@ -441,27 +453,33 @@ function RankingTab({ ranking, participants }) {
     <div>
       <SectionTitle icon="🏅" title="Classificação Geral" />
       <div style={{ ...S.card, background:"linear-gradient(135deg,rgba(232,184,75,0.08),rgba(232,184,75,0.02))", border:`1px solid rgba(232,184,75,0.2)`, marginBottom:20 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"40px 1fr 80px 80px 80px", gap:8, fontSize:11, color:"#556", fontWeight:700, letterSpacing:1, padding:"0 4px 8px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-          <span>#</span><span>PARTICIPANTE</span><span style={{textAlign:"center"}}>PONTOS</span><span style={{textAlign:"center"}}>ACERTOS</span><span style={{textAlign:"center"}}>PALPITES</span>
+        <div style={{ display:"grid", gridTemplateColumns:cols, gap:8, fontSize:11, color:"#556", fontWeight:700, letterSpacing:1, padding:"0 4px 8px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+          <span>#</span><span>PARTICIPANTE</span><span style={{textAlign:"center"}}>PTS</span>
+          {!mobile && <><span style={{textAlign:"center"}}>ACERTOS</span><span style={{textAlign:"center"}}>PALPITES</span></>}
         </div>
         {ranking.map((p, i) => (
           <div key={p.id} style={{
-            display:"grid", gridTemplateColumns:"40px 1fr 80px 80px 80px", gap:8,
+            display:"grid", gridTemplateColumns:cols, gap:8,
             alignItems:"center", padding:"10px 4px",
             borderBottom: i < ranking.length-1 ? "1px solid rgba(255,255,255,0.04)" : "none",
             background: i===0 ? "rgba(232,184,75,0.04)" : "none",
           }}>
-            <span style={{ fontSize:18, textAlign:"center" }}>{medals[i] || `${i+1}`}</span>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <Avatar participant={p} size={32} />
-              <span style={{ fontWeight:700, fontSize:14 }}>{p.name}</span>
+            <span style={{ fontSize:mobile?15:18, textAlign:"center" }}>{medals[i] || `${i+1}`}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <Avatar participant={p} size={mobile?26:32} />
+              <div>
+                <div style={{ fontWeight:700, fontSize:mobile?13:14 }}>{p.name}</div>
+                {mobile && <div style={{ fontSize:11, color:"#8a9" }}>{p.correct} acertos · {p.preds}/{ALL_MATCHES.length}</div>}
+              </div>
             </div>
             <div style={{ textAlign:"center" }}>
-              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:i===0?S.gold:"#e8eaf0" }}>{p.pts}</span>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:mobile?20:22, color:i===0?S.gold:"#e8eaf0" }}>{p.pts}</span>
               <span style={{ fontSize:10, color:"#556", marginLeft:2 }}>pts</span>
             </div>
-            <div style={{ textAlign:"center", fontSize:13, color:"#8a9" }}>{p.correct} ✓</div>
-            <div style={{ textAlign:"center", fontSize:13, color:"#667" }}>{p.preds}/{ALL_MATCHES.length}</div>
+            {!mobile && <>
+              <div style={{ textAlign:"center", fontSize:13, color:"#8a9" }}>{p.correct} ✓</div>
+              <div style={{ textAlign:"center", fontSize:13, color:"#667" }}>{p.preds}/{ALL_MATCHES.length}</div>
+            </>}
           </div>
         ))}
       </div>
@@ -578,6 +596,8 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
 function MatchCard({ match, pred, liveScore, onPred, disabled, participants, predictions, now }) {
   const home = TEAMS[match.home];
   const away = TEAMS[match.away];
+  const mobile = useIsMobile();
+  const flagSize = mobile ? 40 : 52;
   const [homeInput, setHomeInput] = useState(pred?.home ?? "");
   const [awayInput, setAwayInput] = useState(pred?.away ?? "");
 
@@ -655,30 +675,30 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
       {/* Teams + score */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:8, marginBottom:14 }}>
         {/* Home */}
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-          <FlagImg code={match.home} size={56} />
-          <div style={{ fontSize:13, fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{home.name}</div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+          <FlagImg code={match.home} size={flagSize} />
+          <div style={{ fontSize:mobile?11:13, fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{home.name}</div>
         </div>
 
         {/* Score */}
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
           {(isLive||isFinal) ? (
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:36, color:isLive?S.green:S.silver, letterSpacing:3, lineHeight:1 }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:mobile?28:36, color:isLive?S.green:S.silver, letterSpacing:3, lineHeight:1 }}>
               {liveScore.homeScore} – {liveScore.awayScore}
             </div>
           ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:mobile?5:8 }}>
               <ScoreStepper value={homeInput} onChange={v => handleScore("home", v)} disabled={!canEdit} />
-              <span style={{ color:"#334", fontSize:20, fontWeight:700, marginBottom:0 }}>×</span>
+              <span style={{ color:"#334", fontSize:18, fontWeight:700 }}>×</span>
               <ScoreStepper value={awayInput} onChange={v => handleScore("away", v)} disabled={!canEdit} />
             </div>
           )}
         </div>
 
         {/* Away */}
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-          <FlagImg code={match.away} size={56} />
-          <div style={{ fontSize:13, fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{away.name}</div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+          <FlagImg code={match.away} size={flagSize} />
+          <div style={{ fontSize:mobile?11:13, fontWeight:700, textAlign:"center", lineHeight:1.2 }}>{away.name}</div>
         </div>
       </div>
 
@@ -758,91 +778,126 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
 }
 
 // ═══════════════════════════════════════════════════════
-//  BRACKET TAB
+//  BRACKET TAB  (tab-based, no horizontal scroll)
 // ═══════════════════════════════════════════════════════
-const BK_H    = 768; // bracket body height px (divisible by 16)
-const BK_COL  = 158; // column width px
-const BK_GAP  = 10;  // gap between columns px
-const BK_CARD = 44;  // match card height px
-const BK_LABEL = 30; // round label height px
-
 function getBracketMatch(bracket, roundId, idx) {
   return bracket?.[roundId]?.[idx] || emptyBracketMatch();
 }
 
 function BracketTab({ bracket, saveBracket }) {
-  const [editing, setEditing] = useState(null); // { roundId, idx }
-  const [editData, setEditData] = useState({});
+  const [activeRound, setActiveRound] = useState("r32");
+  const [editing, setEditing]         = useState(null);
+  const [editData, setEditData]       = useState({});
 
-  function startEdit(roundId, idx) {
+  const round = BRACKET_ROUNDS.find(r => r.id === activeRound);
+
+  function openEdit(roundId, idx) {
     setEditData({ ...getBracketMatch(bracket, roundId, idx) });
     setEditing({ roundId, idx });
   }
-
   function saveEdit() {
-    const next = {
-      ...bracket,
-      [editing.roundId]: { ...(bracket[editing.roundId]||{}), [editing.idx]: editData },
-    };
-    saveBracket(next);
+    saveBracket({ ...bracket, [editing.roundId]: { ...(bracket[editing.roundId]||{}), [editing.idx]: editData } });
     setEditing(null);
   }
-
   function clearMatch() {
-    const next = {
-      ...bracket,
-      [editing.roundId]: { ...(bracket[editing.roundId]||{}), [editing.idx]: emptyBracketMatch() },
-    };
-    saveBracket(next);
+    saveBracket({ ...bracket, [editing.roundId]: { ...(bracket[editing.roundId]||{}), [editing.idx]: emptyBracketMatch() } });
     setEditing(null);
   }
-
-  const totalWidth = BRACKET_ROUNDS.length * (BK_COL + BK_GAP);
 
   return (
     <div>
       <SectionTitle icon="🏆" title="Chaveamento" />
-      <div style={{ fontSize:12, color:"#556", marginBottom:12 }}>Toque em qualquer jogo para atualizar os times e o placar.</div>
 
-      <div style={{ ...S.card, padding:8, overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
-        <div style={{ position:"relative", height:BK_H + BK_LABEL, width:totalWidth, minWidth:totalWidth }}>
-          {BRACKET_ROUNDS.map((round, rIdx) => {
-            const x = rIdx * (BK_COL + BK_GAP);
-            const slotH = BK_H / round.slots;
-            return (
-              <div key={round.id} style={{ position:"absolute", left:x, top:0, width:BK_COL }}>
-                <div style={{ height:BK_LABEL, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:S.gold, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase" }}>
-                  {round.label}
-                </div>
-                {Array.from({ length:round.slots }, (_,idx) => {
-                  const match = getBracketMatch(bracket, round.id, idx);
-                  const top = BK_LABEL + idx * slotH + (slotH - BK_CARD) / 2;
-                  return (
-                    <div key={idx} style={{ position:"absolute", top, left:0, right:0 }} onClick={() => startEdit(round.id, idx)}>
-                      <BracketCard match={match} />
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ textAlign:"center", fontSize:10, color:"#334", marginTop:4, paddingTop:4, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
-          ← deslize para ver o chaveamento completo →
-        </div>
+      {/* Round tabs */}
+      <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:16 }}>
+        {BRACKET_ROUNDS.map(r => {
+          const filled = Array.from({length:r.slots}, (_,i) => getBracketMatch(bracket, r.id, i)).filter(m => m.home || m.away).length;
+          return (
+            <button key={r.id} onClick={() => setActiveRound(r.id)} style={{
+              background: activeRound===r.id ? S.gold : "rgba(255,255,255,0.07)",
+              color: activeRound===r.id ? "#080c18" : "#aab",
+              border:"none", borderRadius:8, padding:"8px 14px", cursor:"pointer",
+              fontFamily:"'Bebas Neue',sans-serif", fontSize:13, fontWeight:700,
+              letterSpacing:1, transition:"all 0.2s", position:"relative",
+            }}>
+              {r.label}
+              {filled > 0 && (
+                <span style={{
+                  position:"absolute", top:-4, right:-4,
+                  background: filled===r.slots ? "#2ecc71" : "#f39c12",
+                  borderRadius:"50%", width:14, height:14, fontSize:9,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  color:"#fff", fontFamily:"'Nunito',sans-serif", fontWeight:700,
+                }}>
+                  {filled===r.slots ? "✓" : filled}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      <div style={{ fontSize:11, color:"#556", marginBottom:12 }}>
+        {round.label} — {round.slots} {round.slots===1?"jogo":"jogos"} · Toque para editar
+      </div>
+
+      {Array.from({length: round.slots}, (_, idx) => {
+        const match = getBracketMatch(bracket, activeRound, idx);
+        const homeTeam = match.home ? TEAMS[match.home] : null;
+        const awayTeam = match.away ? TEAMS[match.away] : null;
+        const hasScore = match.homeScore !== "" && match.homeScore != null;
+        return (
+          <div key={idx} onClick={() => openEdit(activeRound, idx)} style={{
+            ...S.card, cursor:"pointer",
+            border: match.winner ? `1px solid rgba(232,184,75,0.3)` : "1px solid rgba(255,255,255,0.08)",
+            background: match.winner ? "rgba(232,184,75,0.04)" : "rgba(255,255,255,0.04)",
+            transition:"all 0.15s",
+          }}>
+            <div style={{ fontSize:11, color:"#445", marginBottom:8, letterSpacing:1 }}>JOGO {idx+1}</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:10 }}>
+              {/* Home */}
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {match.home
+                  ? <FlagImg code={match.home} size={32} />
+                  : <div style={{ width:32, height:22, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
+                <span style={{ fontSize:13, fontWeight: match.winner==="home" ? 700 : 400, color: match.winner==="home" ? S.gold : "#aab" }}>
+                  {homeTeam ? homeTeam.name : "A definir"}
+                </span>
+              </div>
+              {/* Score */}
+              <div style={{ textAlign:"center", minWidth:64 }}>
+                {hasScore
+                  ? <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color: match.winner ? S.gold : S.silver, letterSpacing:2 }}>{match.homeScore} – {match.awayScore}</span>
+                  : <span style={{ fontSize:12, color:"#334", letterSpacing:2 }}>VS</span>}
+              </div>
+              {/* Away */}
+              <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
+                <span style={{ fontSize:13, fontWeight: match.winner==="away" ? 700 : 400, color: match.winner==="away" ? S.gold : "#aab", textAlign:"right" }}>
+                  {awayTeam ? awayTeam.name : "A definir"}
+                </span>
+                {match.away
+                  ? <FlagImg code={match.away} size={32} />
+                  : <div style={{ width:32, height:22, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
+              </div>
+            </div>
+            {match.winner && (
+              <div style={{ marginTop:8, fontSize:11, color:S.gold, textAlign:"center", letterSpacing:0.5 }}>
+                ✓ Classificado: {match.winner==="home" ? homeTeam?.name : awayTeam?.name}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {/* Edit modal */}
       {editing && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
           onClick={() => setEditing(null)}>
           <div onClick={e => e.stopPropagation()} style={{ ...S.card, width:"100%", maxWidth:340, margin:0, maxHeight:"90vh", overflowY:"auto" }}>
             <div style={{ fontWeight:700, fontSize:14, color:S.gold, marginBottom:14 }}>
               ✏️ {BRACKET_ROUNDS.find(r=>r.id===editing.roundId)?.label} — Jogo {editing.idx+1}
             </div>
-
-            <TeamSearchPicker label="Time A (casa)" value={editData.home||""} onChange={v => setEditData(d=>({...d, home:v, winner: d.winner==="home" && !v ? "" : d.winner}))} />
-
+            <TeamSearchPicker label="Time A (casa)" value={editData.home||""} onChange={v => setEditData(d=>({...d, home:v}))} />
             <div style={{ display:"flex", alignItems:"center", gap:8, margin:"10px 0" }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:11, color:"#556", marginBottom:4 }}>Gols Casa</div>
@@ -856,9 +911,7 @@ function BracketTab({ bracket, saveBracket }) {
                   style={{ width:"100%", textAlign:"center", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"#fff", padding:"8px 0", fontFamily:"'Bebas Neue',sans-serif", fontSize:24, boxSizing:"border-box", outline:"none" }} />
               </div>
             </div>
-
-            <TeamSearchPicker label="Time B (fora)" value={editData.away||""} onChange={v => setEditData(d=>({...d, away:v, winner: d.winner==="away" && !v ? "" : d.winner}))} />
-
+            <TeamSearchPicker label="Time B (fora)" value={editData.away||""} onChange={v => setEditData(d=>({...d, away:v}))} />
             {editData.home && editData.away && (
               <div style={{ marginTop:12 }}>
                 <div style={{ fontSize:11, color:"#556", marginBottom:6 }}>Classificado</div>
@@ -872,15 +925,16 @@ function BracketTab({ bracket, saveBracket }) {
                         border:`1.5px solid ${editData.winner===side ? S.gold : "rgba(255,255,255,0.1)"}`,
                         borderRadius:8, padding:"8px 4px", cursor:"pointer",
                         color: editData.winner===side ? S.gold : "#778", fontSize:12, fontWeight:700,
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:6,
                       }}>
-                        {team ? `${team.flag} ${team.name}` : side==="home" ? "Time A" : "Time B"}
+                        {team && <FlagImg code={code} size={18} />}
+                        {team ? team.name : (side==="home" ? "Time A" : "Time B")}
                       </button>
                     );
                   })}
                 </div>
               </div>
             )}
-
             <div style={{ display:"flex", gap:8, marginTop:14 }}>
               <button onClick={saveEdit} style={{ flex:1, background:S.gold, color:"#080c18", border:"none", borderRadius:8, padding:"11px 0", cursor:"pointer", fontFamily:"'Nunito',sans-serif", fontWeight:700, fontSize:14 }}>Salvar</button>
               <button onClick={clearMatch} style={{ background:"rgba(231,76,60,0.1)", border:"1px solid rgba(231,76,60,0.3)", color:S.red, borderRadius:8, padding:"11px 14px", cursor:"pointer", fontSize:13 }}>Limpar</button>
@@ -893,59 +947,24 @@ function BracketTab({ bracket, saveBracket }) {
   );
 }
 
-function BracketCard({ match }) {
-  const hasScore = match.homeScore !== "" && match.homeScore !== null && match.homeScore !== undefined;
-  return (
-    <div style={{
-      background: match.winner ? "rgba(232,184,75,0.06)" : "rgba(255,255,255,0.05)",
-      border:`1px solid ${match.winner ? "rgba(232,184,75,0.25)" : "rgba(255,255,255,0.1)"}`,
-      borderRadius:7, height:BK_CARD, overflow:"hidden", cursor:"pointer",
-      display:"flex", flexDirection:"column", justifyContent:"space-around",
-      padding:"3px 7px", transition:"all 0.15s",
-    }}>
-      <BracketTeamRow teamCode={match.home||null} score={hasScore ? match.homeScore : null} isWinner={match.winner==="home"} />
-      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"0 -7px" }} />
-      <BracketTeamRow teamCode={match.away||null} score={hasScore ? match.awayScore : null} isWinner={match.winner==="away"} />
-    </div>
-  );
-}
-
-function BracketTeamRow({ teamCode, score, isWinner }) {
-  const team = teamCode ? TEAMS[teamCode] : null;
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-      {team
-        ? <FlagImg code={teamCode} size={20} />
-        : <div style={{ width:20, height:14, background:"rgba(255,255,255,0.06)", borderRadius:2 }} />}
-      <span style={{ fontSize:9, flex:1, color: isWinner ? "#fff" : "#667", fontWeight: isWinner ? 700 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-        {team ? team.name : "A definir"}
-      </span>
-      {score !== null && score !== undefined && score !== "" && (
-        <span style={{ fontSize:13, fontFamily:"'Bebas Neue',sans-serif", color: isWinner ? S.gold : "#556", minWidth:14, textAlign:"right" }}>
-          {score}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function TeamSearchPicker({ label, value, onChange }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const team = value ? TEAMS[value] : null;
-  const filtered = Object.entries(TEAMS).filter(([,t]) =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase())
-  );
-
+  const filtered = Object.entries(TEAMS).filter(([,t]) => !search || t.name.toLowerCase().includes(search.toLowerCase()));
   return (
     <div style={{ marginBottom:8 }}>
       <div style={{ fontSize:11, color:"#556", marginBottom:4 }}>{label}</div>
       <button onClick={() => setOpen(o=>!o)} style={{
         width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
         borderRadius:8, color: team ? "#fff" : "#556", padding:"8px 12px", cursor:"pointer",
-        fontFamily:"'Nunito',sans-serif", fontSize:13, textAlign:"left", display:"flex", alignItems:"center", justifyContent:"space-between",
+        fontFamily:"'Nunito',sans-serif", fontSize:13, textAlign:"left",
+        display:"flex", alignItems:"center", justifyContent:"space-between", gap:8,
       }}>
-        <span>{team ? `${team.flag} ${team.name}` : "Selecionar seleção..."}</span>
+        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {team && <FlagImg code={value} size={20} />}
+          {team ? team.name : "Selecionar seleção..."}
+        </span>
         <span style={{ color:"#445" }}>{open?"▲":"▼"}</span>
       </button>
       {open && (
@@ -953,11 +972,7 @@ function TeamSearchPicker({ label, value, onChange }) {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." autoFocus
             style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"#fff", padding:"7px 12px", fontSize:12, fontFamily:"'Nunito',sans-serif", boxSizing:"border-box", outline:"none" }} />
           <div style={{ maxHeight:160, overflowY:"auto", display:"grid", gridTemplateColumns:"1fr 1fr", gap:3, marginTop:4 }}>
-            {value && (
-              <button onClick={() => { onChange(""); setOpen(false); setSearch(""); }} style={{ gridColumn:"1/-1", background:"rgba(231,76,60,0.1)", border:"1px solid rgba(231,76,60,0.3)", borderRadius:6, color:S.red, padding:"5px 8px", cursor:"pointer", fontSize:11, textAlign:"left" }}>
-                ✕ Remover seleção
-              </button>
-            )}
+            {value && <button onClick={() => { onChange(""); setOpen(false); setSearch(""); }} style={{ gridColumn:"1/-1", background:"rgba(231,76,60,0.1)", border:"1px solid rgba(231,76,60,0.3)", borderRadius:6, color:S.red, padding:"5px 8px", cursor:"pointer", fontSize:11, textAlign:"left" }}>✕ Remover</button>}
             {filtered.map(([code, t]) => (
               <button key={code} onClick={() => { onChange(code); setOpen(false); setSearch(""); }} style={{
                 background: value===code ? `${S.gold}22` : "rgba(255,255,255,0.04)",
@@ -966,7 +981,7 @@ function TeamSearchPicker({ label, value, onChange }) {
                 cursor:"pointer", fontSize:11, fontFamily:"'Nunito',sans-serif",
                 display:"flex", alignItems:"center", gap:5, textAlign:"left",
               }}>
-                <span style={{ fontSize:16 }}>{t.flag}</span>
+                <FlagImg code={code} size={18} />
                 <span style={{ fontWeight: value===code ? 700 : 400 }}>{t.name}</span>
               </button>
             ))}
@@ -980,15 +995,40 @@ function TeamSearchPicker({ label, value, onChange }) {
 // ═══════════════════════════════════════════════════════
 //  CAMPEÃO TAB
 // ═══════════════════════════════════════════════════════
+function fmtSubmitTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const day = d.toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", timeZone:"America/Sao_Paulo" });
+  const time = d.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit", timeZone:"America/Sao_Paulo" });
+  return `${day} às ${time}`;
+}
+
 function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
   const [search, setSearch] = useState("");
   const activePart = participants.find(p => p.id === activePid);
   const myPicks = activePid ? (extraPicks[activePid] || {}) : {};
 
+  // Artilheiro: stored as {value, submittedAt} or legacy plain string
+  const rawScorer = myPicks.topScorer;
+  const scorerObj = rawScorer && typeof rawScorer === "object" ? rawScorer : (rawScorer ? { value: rawScorer, submittedAt: null } : null);
+  const [editingScorer, setEditingScorer] = useState(false);
+  const [scorerInput, setScorerInput]     = useState("");
+
   function pick(field, value) {
     if (!activePid) return;
     const next = { ...extraPicks, [activePid]: { ...(extraPicks[activePid]||{}), [field]: value } };
     saveExtraPicks(next);
+  }
+
+  function submitScorer() {
+    if (!scorerInput.trim()) return;
+    pick("topScorer", { value: scorerInput.trim(), submittedAt: Date.now() });
+    setEditingScorer(false);
+  }
+
+  function startEditScorer() {
+    setScorerInput(scorerObj?.value || "");
+    setEditingScorer(true);
   }
 
   const allTeams = Object.entries(TEAMS);
@@ -1004,13 +1044,14 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
         <div style={{ ...S.card, marginBottom:20 }}>
           <div style={{ fontSize:12, color:"#556", letterSpacing:1, fontWeight:700, marginBottom:10 }}>TODOS OS PALPITES DE CAMPEÃO</div>
           {participants.map(p => {
-            const champ = extraPicks[p.id]?.champion ? TEAMS[extraPicks[p.id].champion] : null;
+            const champCode = extraPicks[p.id]?.champion;
+            const champ = champCode ? TEAMS[champCode] : null;
             return (
               <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                 <Avatar participant={p} size={28} />
                 <span style={{ flex:1, fontSize:13, fontWeight:600 }}>{p.name}</span>
                 {champ
-                  ? <span style={{ fontSize:15 }}>{champ.flag} {champ.name}</span>
+                  ? <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:13 }}><FlagImg code={champCode} size={20} />{champ.name}</span>
                   : <span style={{ fontSize:12, color:"#445" }}>Não definido</span>}
               </div>
             );
@@ -1026,8 +1067,8 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
             <div style={{ fontSize:11, color:"#667" }}>{POINTS_CONFIG.champion} pontos</div>
           </div>
           {myPicks.champion && (
-            <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, background:"rgba(232,184,75,0.1)", borderRadius:8, padding:"6px 12px" }}>
-              <span style={{ fontSize:24 }}>{TEAMS[myPicks.champion].flag}</span>
+            <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, background:"rgba(232,184,75,0.1)", borderRadius:8, padding:"6px 12px" }}>
+              <FlagImg code={myPicks.champion} size={28} />
               <span style={{ fontWeight:700, color:S.gold }}>{TEAMS[myPicks.champion].name}</span>
             </div>
           )}
@@ -1043,8 +1084,8 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
             <div style={{ fontSize:11, color:"#667" }}>{POINTS_CONFIG.runnerUp} pontos</div>
           </div>
           {myPicks.runnerUp && (
-            <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, background:"rgba(176,184,200,0.08)", borderRadius:8, padding:"6px 12px" }}>
-              <span style={{ fontSize:24 }}>{TEAMS[myPicks.runnerUp].flag}</span>
+            <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, background:"rgba(176,184,200,0.08)", borderRadius:8, padding:"6px 12px" }}>
+              <FlagImg code={myPicks.runnerUp} size={28} />
               <span style={{ fontWeight:600, color:S.silver }}>{TEAMS[myPicks.runnerUp].name}</span>
             </div>
           )}
@@ -1053,15 +1094,50 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
       </div>
 
       <div style={{ ...S.card }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
           <span style={{ fontSize:28 }}>⚽</span>
           <div>
             <div style={{ fontWeight:700, fontSize:15 }}>Artilheiro da Copa</div>
             <div style={{ fontSize:11, color:"#667" }}>Campo livre — bônus a definir</div>
           </div>
         </div>
-        <input value={myPicks.topScorer||""} onChange={e => pick("topScorer",e.target.value)} placeholder="Nome do jogador..."
-          style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:8, color:"#fff", padding:"10px 14px", fontSize:14, fontFamily:"'Nunito',sans-serif", boxSizing:"border-box", outline:"none" }} />
+
+        {scorerObj && !editingScorer ? (
+          <div style={{ background:"rgba(46,204,113,0.06)", border:"1px solid rgba(46,204,113,0.2)", borderRadius:8, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700, fontSize:15, color:"#e8eaf0" }}>{scorerObj.value}</div>
+              {scorerObj.submittedAt && (
+                <div style={{ fontSize:11, color:"#556", marginTop:3 }}>Enviado em {fmtSubmitTime(scorerObj.submittedAt)}</div>
+              )}
+            </div>
+            <button onClick={startEditScorer} style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, color:"#aab", padding:"6px 14px", cursor:"pointer", fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:600 }}>
+              Editar
+            </button>
+          </div>
+        ) : (
+          <div style={{ display:"flex", gap:8 }}>
+            <input
+              value={editingScorer ? scorerInput : ""}
+              onChange={e => setScorerInput(e.target.value)}
+              onFocus={() => { if (!editingScorer) { setScorerInput(scorerObj?.value || ""); setEditingScorer(true); } }}
+              onKeyDown={e => e.key === "Enter" && submitScorer()}
+              placeholder="Nome do jogador..."
+              style={{ flex:1, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:8, color:"#fff", padding:"10px 14px", fontSize:14, fontFamily:"'Nunito',sans-serif", outline:"none" }}
+            />
+            <button
+              onClick={submitScorer}
+              disabled={!scorerInput.trim()}
+              style={{
+                background: scorerInput.trim() ? S.gold : "rgba(255,255,255,0.06)",
+                color: scorerInput.trim() ? "#080c18" : "#556",
+                border:"none", borderRadius:8, padding:"10px 18px", cursor: scorerInput.trim() ? "pointer" : "default",
+                fontFamily:"'Nunito',sans-serif", fontWeight:700, fontSize:14, transition:"all 0.2s", whiteSpace:"nowrap",
+              }}
+            >
+              Enviar
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1075,9 +1151,13 @@ function TeamPicker({ value, onPick, highlight, search, setSearch, filtered }) {
         background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)",
         borderRadius:8, color:"#aab", padding:"8px 14px", cursor:"pointer",
         fontFamily:"'Nunito',sans-serif", fontSize:13, width:"100%", textAlign:"left",
+        display:"flex", alignItems:"center", justifyContent:"space-between", gap:8,
       }}>
-        {value ? `${TEAMS[value].flag} ${TEAMS[value].name}` : "Selecionar seleção..."}
-        <span style={{ float:"right" }}>{open?"▲":"▼"}</span>
+        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {value && <FlagImg code={value} size={20} />}
+          {value ? TEAMS[value].name : "Selecionar seleção..."}
+        </span>
+        <span>{open?"▲":"▼"}</span>
       </button>
       {open && (
         <div>
