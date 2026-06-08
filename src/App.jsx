@@ -363,7 +363,7 @@ export default function BolaoApp() {
       <Header activePart={activePart} participants={parts} activePid={activePid} setActivePid={setActivePid} apiStatus={apiStatus} fetchLiveScores={fetchLiveScores} />
       <TabBar tab={tab} setTab={setTab} />
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
-        {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} />}
+        {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} liveScores={liveScores} />}
         {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} savePredictions={savePredictions} now={now} />}
         {tab==="chaveamento"   && <BracketTab bracket={bracket} saveBracket={saveBracket} />}
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicks={saveExtraPicks} />}
@@ -440,9 +440,71 @@ function TabBar({ tab, setTab }) {
 }
 
 // ═══════════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════════
+function buildCSV(participants, predictions, extraPicks, ranking) {
+  const BOM = "﻿";
+  const row = (...cells) => cells.map(c => `"${String(c ?? "").replace(/"/g,'""')}"`).join(",");
+
+  const lines = [];
+  const ts = new Date().toLocaleString("pt-BR", { timeZone:"America/Sao_Paulo" });
+
+  lines.push(row("BOLÃO COPA 2026 — Exportação de Palpites"));
+  lines.push(row(`Exportado em: ${ts}`));
+  lines.push("");
+
+  // Ranking
+  lines.push(row("=== CLASSIFICAÇÃO ==="));
+  lines.push(row("Pos","Participante","Pontos","Acertos","Placar Exato","Palpites"));
+  ranking.forEach((p, i) => lines.push(row(i+1, p.name, p.pts, p.correct, p.exact, p.preds)));
+  lines.push("");
+
+  // Match predictions
+  lines.push(row("=== PALPITES DOS JOGOS ==="));
+  lines.push(row("Participante","Grupo","Rodada","Casa","Fora","Gols Casa","Gols Fora","Resultado"));
+  participants.forEach(p => {
+    const preds = predictions[p.id] || {};
+    ALL_MATCHES.forEach(m => {
+      const pred = preds[m.id];
+      if (!pred) return;
+      const res = pred.result === "H" ? TEAMS[m.home].name : pred.result === "A" ? TEAMS[m.away].name : pred.result === "D" ? "Empate" : "";
+      lines.push(row(p.name, `Grupo ${m.group}`, m.md, TEAMS[m.home].name, TEAMS[m.away].name, pred.home ?? "", pred.away ?? "", res));
+    });
+  });
+  lines.push("");
+
+  // Extra picks
+  lines.push(row("=== PALPITES ESPECIAIS ==="));
+  lines.push(row("Participante","Campeão","Vice-Campeão","Artilheiro","Artilheiro Enviado Em"));
+  participants.forEach(p => {
+    const picks = extraPicks[p.id] || {};
+    const raw = picks.topScorer;
+    const scorer = raw && typeof raw === "object" ? raw : (raw ? { value: raw, submittedAt: null } : null);
+    lines.push(row(
+      p.name,
+      picks.champion ? TEAMS[picks.champion].name : "",
+      picks.runnerUp ? TEAMS[picks.runnerUp].name : "",
+      scorer?.value || "",
+      scorer?.submittedAt ? fmtSubmitTime(scorer.submittedAt) : "",
+    ));
+  });
+
+  const csv = BOM + lines.join("\r\n");
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `bolao_copa2026_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════
 //  RANKING TAB
 // ═══════════════════════════════════════════════════════
-function RankingTab({ ranking, participants }) {
+function RankingTab({ ranking, participants, predictions, extraPicks, liveScores }) {
   const medals = ["🥇","🥈","🥉"];
   const mobile = useIsMobile();
   const cols = mobile ? "32px 1fr 64px" : "40px 1fr 80px 72px 72px";
@@ -498,6 +560,23 @@ function RankingTab({ ranking, participants }) {
           </div>
         ))}
       </div>
+
+      {participants.length > 0 && (
+        <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
+          <button
+            onClick={() => buildCSV(participants, predictions, extraPicks, ranking)}
+            style={{
+              display:"flex", alignItems:"center", gap:8,
+              background:"rgba(232,184,75,0.1)", border:`1px solid rgba(232,184,75,0.35)`,
+              color:S.gold, borderRadius:10, padding:"10px 20px",
+              cursor:"pointer", fontFamily:"'Nunito',sans-serif", fontWeight:700, fontSize:13,
+              transition:"all 0.2s",
+            }}
+          >
+            ⬇ Exportar CSV
+          </button>
+        </div>
+      )}
     </div>
   );
 }
