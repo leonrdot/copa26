@@ -413,11 +413,11 @@ export default function BolaoApp() {
     return { pts, correct, exact };
   }
 
+  const parts      = Array.isArray(participants) ? participants : [];
   const ranking = parts
     .map(p => ({ ...p, ...calcScore(p.id), preds: Object.keys(predictions[p.id]||{}).length }))
     .sort((a,b) => b.pts - a.pts || b.correct - a.correct || b.preds - a.preds);
 
-  const parts     = Array.isArray(participants) ? participants : [];
   const activePart = parts.find(p => p.id === activePid);
   const activeBolaoName = boloesMeta[activeBolaoId]?.name || null;
 
