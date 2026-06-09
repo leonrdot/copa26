@@ -71,35 +71,69 @@ const GROUPS_RAW = [
   { id: "L", teams: ["ENG","CRO","GHA","PAN"] },
 ];
 
-// Copa 2026 approximate schedule (BRT = UTC-3)
-// MD1: Jun 11-16, MD2: Jun 17-22, MD3: Jun 23-28
-// 2 groups per day; even groups at 13h/16h BRT, odd at 16h/19h BRT
-function getMatchStartTime(groupId, md, matchIdx) {
-  const gi = "ABCDEFGHIJKL".indexOf(groupId);
-  const pairIdx = Math.floor(gi / 2); // 0-5 → one pair of groups per day
-  const isOdd = gi % 2 === 1;
-  const dayBase = [11, 17, 23][md - 1];
-  const day = dayBase + pairIdx;
-  let hourBRT;
-  if (md === 3) {
-    // MD3: both matches play simultaneously
-    hourBRT = isOdd ? 16 : 13;
-  } else {
-    hourBRT = isOdd ? (matchIdx === 0 ? 16 : 19) : (matchIdx === 0 ? 13 : 16);
-  }
-  return Date.UTC(2026, 5, day, hourBRT + 3, 0, 0); // UTC
-}
+// Official Copa 2026 group stage schedule — UTC timestamps (ET + 4h for EDT)
+// Sources: FIFA, NBC Sports, ESPN (verified June 2026)
+const MATCH_SCHEDULE = {
+  // Group A: MEX RSA KOR CZE
+  A1:Date.UTC(2026,5,11,19,0,0), A2:Date.UTC(2026,5,12, 2,0,0),
+  A3:Date.UTC(2026,5,19, 3,0,0), A4:Date.UTC(2026,5,18,16,0,0),
+  A5:Date.UTC(2026,5,25, 1,0,0), A6:Date.UTC(2026,5,25, 1,0,0),
+  // Group B: CAN BIH QAT SUI
+  B1:Date.UTC(2026,5,12,19,0,0), B2:Date.UTC(2026,5,13,19,0,0),
+  B3:Date.UTC(2026,5,18,22,0,0), B4:Date.UTC(2026,5,18,19,0,0),
+  B5:Date.UTC(2026,5,24,19,0,0), B6:Date.UTC(2026,5,24,19,0,0),
+  // Group C: BRA MAR HAI SCO
+  C1:Date.UTC(2026,5,13,22,0,0), C2:Date.UTC(2026,5,14, 1,0,0),
+  C3:Date.UTC(2026,5,20, 1,0,0), C4:Date.UTC(2026,5,19,22,0,0),
+  C5:Date.UTC(2026,5,24,22,0,0), C6:Date.UTC(2026,5,24,22,0,0),
+  // Group D: USA PAR AUS TUR
+  D1:Date.UTC(2026,5,13, 1,0,0), D2:Date.UTC(2026,5,14, 4,0,0),
+  D3:Date.UTC(2026,5,19,19,0,0), D4:Date.UTC(2026,5,20, 4,0,0),
+  D5:Date.UTC(2026,5,26, 2,0,0), D6:Date.UTC(2026,5,26, 2,0,0),
+  // Group E: GER CUW CIV ECU
+  E1:Date.UTC(2026,5,14,17,0,0), E2:Date.UTC(2026,5,14,23,0,0),
+  E3:Date.UTC(2026,5,20,20,0,0), E4:Date.UTC(2026,5,21, 0,0,0),
+  E5:Date.UTC(2026,5,25,20,0,0), E6:Date.UTC(2026,5,25,20,0,0),
+  // Group F: NED JPN SWE TUN
+  F1:Date.UTC(2026,5,14,20,0,0), F2:Date.UTC(2026,5,15, 2,0,0),
+  F3:Date.UTC(2026,5,20,17,0,0), F4:Date.UTC(2026,5,21, 4,0,0),
+  F5:Date.UTC(2026,5,25,23,0,0), F6:Date.UTC(2026,5,25,23,0,0),
+  // Group G: BEL EGY IRN NZL
+  G1:Date.UTC(2026,5,15,22,0,0), G2:Date.UTC(2026,5,16, 4,0,0),
+  G3:Date.UTC(2026,5,21,19,0,0), G4:Date.UTC(2026,5,22, 1,0,0),
+  G5:Date.UTC(2026,5,27, 3,0,0), G6:Date.UTC(2026,5,27, 3,0,0),
+  // Group H: ESP CPV KSA URU
+  H1:Date.UTC(2026,5,15,17,0,0), H2:Date.UTC(2026,5,15,22,0,0),
+  H3:Date.UTC(2026,5,21,16,0,0), H4:Date.UTC(2026,5,21,22,0,0),
+  H5:Date.UTC(2026,5,27, 0,0,0), H6:Date.UTC(2026,5,27, 0,0,0),
+  // Group I: FRA SEN IRQ NOR
+  I1:Date.UTC(2026,5,16,19,0,0), I2:Date.UTC(2026,5,16,22,0,0),
+  I3:Date.UTC(2026,5,22,21,0,0), I4:Date.UTC(2026,5,23, 0,0,0),
+  I5:Date.UTC(2026,5,26,19,0,0), I6:Date.UTC(2026,5,26,19,0,0),
+  // Group J: ARG ALG AUT JOR
+  J1:Date.UTC(2026,5,17, 1,0,0), J2:Date.UTC(2026,5,17, 4,0,0),
+  J3:Date.UTC(2026,5,22,17,0,0), J4:Date.UTC(2026,5,23, 3,0,0),
+  J5:Date.UTC(2026,5,28, 2,0,0), J6:Date.UTC(2026,5,28, 2,0,0),
+  // Group K: POR COD UZB COL
+  K1:Date.UTC(2026,5,17,17,0,0), K2:Date.UTC(2026,5,18, 2,0,0),
+  K3:Date.UTC(2026,5,23,17,0,0), K4:Date.UTC(2026,5,24, 2,0,0),
+  K5:Date.UTC(2026,5,27,23,30,0),K6:Date.UTC(2026,5,27,23,30,0),
+  // Group L: ENG CRO GHA PAN
+  L1:Date.UTC(2026,5,17,20,0,0), L2:Date.UTC(2026,5,17,23,0,0),
+  L3:Date.UTC(2026,5,23,20,0,0), L4:Date.UTC(2026,5,23,23,0,0),
+  L5:Date.UTC(2026,5,27,21,0,0), L6:Date.UTC(2026,5,27,21,0,0),
+};
 
 function genMatches(g) {
   const [t0,t1,t2,t3] = g.teams;
-  const st = (md, mi) => getMatchStartTime(g.id, md, mi);
+  const s = n => MATCH_SCHEDULE[`${g.id}${n}`];
   return [
-    { id:`${g.id}1`, group:g.id, md:1, home:t0, away:t1, startTime:st(1,0) },
-    { id:`${g.id}2`, group:g.id, md:1, home:t2, away:t3, startTime:st(1,1) },
-    { id:`${g.id}3`, group:g.id, md:2, home:t0, away:t2, startTime:st(2,0) },
-    { id:`${g.id}4`, group:g.id, md:2, home:t1, away:t3, startTime:st(2,1) },
-    { id:`${g.id}5`, group:g.id, md:3, home:t0, away:t3, startTime:st(3,0) },
-    { id:`${g.id}6`, group:g.id, md:3, home:t1, away:t2, startTime:st(3,0) },
+    { id:`${g.id}1`, group:g.id, md:1, home:t0, away:t1, startTime:s(1) },
+    { id:`${g.id}2`, group:g.id, md:1, home:t2, away:t3, startTime:s(2) },
+    { id:`${g.id}3`, group:g.id, md:2, home:t0, away:t2, startTime:s(3) },
+    { id:`${g.id}4`, group:g.id, md:2, home:t1, away:t3, startTime:s(4) },
+    { id:`${g.id}5`, group:g.id, md:3, home:t0, away:t3, startTime:s(5) },
+    { id:`${g.id}6`, group:g.id, md:3, home:t1, away:t2, startTime:s(6) },
   ];
 }
 const ALL_MATCHES = GROUPS_RAW.flatMap(genMatches);
@@ -225,6 +259,8 @@ function useFirebaseValue(path, defaultValue) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    setReady(false);
+    if (!path) { setValue(defaultValue); setReady(true); return; }
     const r = ref(db, path);
     const unsub = onValue(r, snap => {
       const data = snap.val();
@@ -235,6 +271,7 @@ function useFirebaseValue(path, defaultValue) {
   }, [path]); // eslint-disable-line
 
   async function save(newValue) {
+    if (!path) return;
     setValue(newValue);
     await set(ref(db, path), newValue);
   }
@@ -255,21 +292,60 @@ function useIsMobile() {
 //  MAIN APP
 // ═══════════════════════════════════════════════════════
 export default function BolaoApp() {
-  const [tab, setTab]           = useState("grupos");
-  const [activePid, setActivePid] = useState(() => localStorage.getItem("bolao_activePid"));
+  const [tab, setTab]             = useState("grupos");
   const [activeGroup, setActiveGroup] = useState("A");
   const [liveScores, setLiveScores]   = useState({});
   const [apiStatus, setApiStatus]     = useState("idle");
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow]             = useState(Date.now());
 
-  const [participants, saveParticipants, p_ready]  = useFirebaseValue("bolao/participants", []);
-  const [predictions,  savePredictions,  pr_ready] = useFirebaseValue("bolao/predictions", {});
-  const [extraPicks,   saveExtraPicks,   ex_ready] = useFirebaseValue("bolao/extraPicks", {});
-  const [bracket,      saveBracket,      br_ready] = useFirebaseValue("bolao/bracket", {});
+  // ── bolão identity (two-level: which bolão, then who inside it) ──
+  const [activeBolaoId, _setBolaoId] = useState(() => localStorage.getItem("bolao_bolaoId"));
+  const [activePid,     _setPid]     = useState(() => {
+    const bid = localStorage.getItem("bolao_bolaoId");
+    return bid ? localStorage.getItem(`bolao_pid_${bid}`) : null;
+  });
 
-  const loaded = p_ready && pr_ready && ex_ready && br_ready;
+  function setActiveBolaoId(id) {
+    _setBolaoId(id);
+    if (id) {
+      localStorage.setItem("bolao_bolaoId", id);
+      _setPid(localStorage.getItem(`bolao_pid_${id}`));
+    } else {
+      localStorage.removeItem("bolao_bolaoId");
+      _setPid(null);
+    }
+  }
+  function setActivePid(id) {
+    _setPid(id);
+    if (activeBolaoId) {
+      if (id) localStorage.setItem(`bolao_pid_${activeBolaoId}`, id);
+      else    localStorage.removeItem(`bolao_pid_${activeBolaoId}`);
+    }
+  }
 
-  // Keep `now` up to date for live locking
+  // "main" bolão maps to legacy bolao/ path; new ones use boloes/{id}/
+  const bolaoBase = activeBolaoId === "main" ? "bolao"
+                  : activeBolaoId             ? `boloes/${activeBolaoId}`
+                  : null;
+
+  // Bolão list (always loaded regardless of selection)
+  const [boloesMeta, saveBoloesMeta, meta_ready] = useFirebaseValue("boloes_meta", {});
+
+  // Bolão-scoped data (null path = not loaded yet)
+  const [participants, saveParticipants, p_ready]  = useFirebaseValue(bolaoBase ? `${bolaoBase}/participants` : null, []);
+  const [predictions,  savePredictions,  pr_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/predictions`  : null, {});
+  const [extraPicks,   saveExtraPicks,   ex_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/extraPicks`   : null, {});
+  const [bracket,      saveBracket,      br_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/bracket`      : null, {});
+
+  const loaded = meta_ready && p_ready && pr_ready && ex_ready && br_ready;
+
+  // Seed "main" bolão entry on first ever load (backward compat)
+  useEffect(() => {
+    if (meta_ready && Object.keys(boloesMeta).length === 0) {
+      saveBoloesMeta({ main: { name: "Bolão Principal", createdAt: 0 } });
+    }
+  }, [meta_ready]); // eslint-disable-line
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
@@ -281,12 +357,6 @@ export default function BolaoApp() {
     link.href = "https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700&display=swap";
     document.head.appendChild(link);
   }, []);
-
-  // Persist chosen identity across sessions
-  useEffect(() => {
-    if (activePid) localStorage.setItem("bolao_activePid", activePid);
-    else localStorage.removeItem("bolao_activePid");
-  }, [activePid]);
 
   useEffect(() => {
     fetchLiveScores();
@@ -343,21 +413,29 @@ export default function BolaoApp() {
     return { pts, correct, exact };
   }
 
-  const parts = Array.isArray(participants) ? participants : [];
   const ranking = parts
     .map(p => ({ ...p, ...calcScore(p.id), preds: Object.keys(predictions[p.id]||{}).length }))
     .sort((a,b) => b.pts - a.pts || b.correct - a.correct || b.preds - a.preds);
 
+  const parts     = Array.isArray(participants) ? participants : [];
   const activePart = parts.find(p => p.id === activePid);
-  const showGate = loaded && !parts.find(p => p.id === activePid);
+  const activeBolaoName = boloesMeta[activeBolaoId]?.name || null;
 
+  const showBolaoGate    = meta_ready && !activeBolaoId;
+  const showIdentityGate = loaded && !!activeBolaoId && !parts.find(p => p.id === activePid);
+
+  function handleBolaoCreate(name) {
+    const id = Date.now().toString(36);
+    saveBoloesMeta({ ...boloesMeta, [id]: { name, createdAt: Date.now() } });
+    setActiveBolaoId(id);
+  }
   function handleGateAdd(name, color) {
     const id = Date.now().toString();
     saveParticipants([...parts, { id, name, color }]);
     setActivePid(id);
   }
 
-  if (!loaded) {
+  if (!meta_ready) {
     return (
       <div style={{ minHeight:"100vh", background:S.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
         <div style={{ color:S.gold, fontSize:48 }}>🏆</div>
@@ -367,14 +445,16 @@ export default function BolaoApp() {
 
   return (
     <div style={{ minHeight:"100vh", background:S.bg, color:"#e8eaf0", fontFamily:"'Nunito',sans-serif" }}>
-      {showGate && (
-        <IdentityGate
-          participants={parts}
-          onSelect={setActivePid}
-          onAdd={handleGateAdd}
-        />
+      {showBolaoGate && (
+        <BolaoGate boloesMeta={boloesMeta} onSelect={setActiveBolaoId} onCreate={handleBolaoCreate} />
       )}
-      <Header activePart={activePart} participants={parts} activePid={activePid} setActivePid={setActivePid} apiStatus={apiStatus} fetchLiveScores={fetchLiveScores} />
+      {!showBolaoGate && showIdentityGate && (
+        <IdentityGate participants={parts} onSelect={setActivePid} onAdd={handleGateAdd}
+          bolaoName={activeBolaoName} onSwitchBolao={() => setActiveBolaoId(null)} />
+      )}
+      <Header activePart={activePart} participants={parts} activePid={activePid} setActivePid={setActivePid}
+        apiStatus={apiStatus} fetchLiveScores={fetchLiveScores}
+        activeBolaoName={activeBolaoName} onSwitchBolao={() => setActiveBolaoId(null)} />
       <TabBar tab={tab} setTab={setTab} />
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
         {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} liveScores={liveScores} />}
@@ -388,9 +468,100 @@ export default function BolaoApp() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  BOLÃO GATE  (pick or create a bolão)
+// ═══════════════════════════════════════════════════════
+function BolaoGate({ boloesMeta, onSelect, onCreate }) {
+  const [creating, setCreating] = useState(false);
+  const [name, setName]         = useState("");
+  const list = Object.entries(boloesMeta || {});
+
+  function handleCreate() {
+    if (!name.trim()) return;
+    onCreate(name.trim());
+  }
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:S.bg, zIndex:500,
+      display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", padding:"24px 20px", overflowY:"auto",
+    }}>
+      <div style={{ fontSize:52, marginBottom:6 }}>🏆</div>
+      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:S.gold, letterSpacing:4, marginBottom:4 }}>BOLÃO COPA 2026</div>
+      <div style={{ fontSize:11, color:"#445", letterSpacing:2, marginBottom:36 }}>EUA · CANADÁ · MÉXICO</div>
+
+      {!creating ? (
+        <div style={{ width:"100%", maxWidth:420 }}>
+          <div style={{ fontWeight:700, fontSize:20, textAlign:"center", marginBottom:6 }}>Escolha o Bolão</div>
+          <div style={{ fontSize:13, color:"#556", textAlign:"center", marginBottom:20 }}>Selecione o seu grupo para entrar</div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:14 }}>
+            {list.map(([id, meta]) => (
+              <button key={id} onClick={() => onSelect(id)} style={{
+                background:"rgba(232,184,75,0.07)", border:`1.5px solid rgba(232,184,75,0.25)`,
+                borderRadius:14, padding:"18px 20px", cursor:"pointer",
+                display:"flex", alignItems:"center", gap:14, textAlign:"left",
+                transition:"border-color 0.15s",
+              }}>
+                <span style={{ fontSize:28 }}>🏆</span>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:16, color:"#e8eaf0" }}>{meta.name}</div>
+                  {meta.createdAt > 0 && <div style={{ fontSize:11, color:"#556", marginTop:2 }}>Criado em {fmtSubmitTime(meta.createdAt)}</div>}
+                </div>
+                <span style={{ marginLeft:"auto", color:S.gold, fontSize:18 }}>›</span>
+              </button>
+            ))}
+          </div>
+
+          <button onClick={() => setCreating(true)} style={{
+            width:"100%", background:"rgba(255,255,255,0.05)",
+            border:"1px solid rgba(255,255,255,0.12)", borderRadius:10,
+            padding:"13px 0", color:"#778", cursor:"pointer",
+            fontFamily:"'Nunito',sans-serif", fontSize:13, fontWeight:600,
+          }}>
+            + Criar novo bolão
+          </button>
+        </div>
+      ) : (
+        <div style={{ ...S.card, width:"100%", maxWidth:360 }}>
+          <div style={{ fontWeight:700, fontSize:16, color:S.gold, marginBottom:16 }}>Novo Bolão</div>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleCreate()}
+            placeholder="Nome do bolão (ex: Família, Trabalho...)"
+            autoFocus
+            maxLength={40}
+            style={{
+              width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)",
+              borderRadius:8, color:"#fff", padding:"11px 14px", fontSize:15,
+              fontFamily:"'Nunito',sans-serif", boxSizing:"border-box", outline:"none", marginBottom:12,
+            }}
+          />
+          <button onClick={handleCreate} disabled={!name.trim()} style={{
+            width:"100%", background: name.trim() ? S.gold : "rgba(255,255,255,0.06)",
+            color: name.trim() ? "#080c18" : "#556", border:"none", borderRadius:8, padding:"12px 0",
+            cursor: name.trim() ? "pointer" : "default", fontFamily:"'Nunito',sans-serif",
+            fontWeight:700, fontSize:15, marginBottom:8, transition:"all 0.2s",
+          }}>
+            Criar
+          </button>
+          <button onClick={() => setCreating(false)} style={{
+            width:"100%", background:"none", border:"none", color:"#556",
+            cursor:"pointer", fontSize:12, fontFamily:"'Nunito',sans-serif", padding:"6px 0",
+          }}>
+            ← Voltar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 //  IDENTITY GATE
 // ═══════════════════════════════════════════════════════
-function IdentityGate({ participants, onSelect, onAdd }) {
+function IdentityGate({ participants, onSelect, onAdd, bolaoName, onSwitchBolao }) {
   const [creating, setCreating] = useState(participants.length === 0);
   const [name, setName]   = useState("");
   const [color, setColor] = useState(COLORS[participants.length % COLORS.length]);
@@ -408,6 +579,12 @@ function IdentityGate({ participants, onSelect, onAdd }) {
     }}>
       <div style={{ fontSize:52, marginBottom:6 }}>🏆</div>
       <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:S.gold, letterSpacing:4, marginBottom:2 }}>BOLÃO COPA 2026</div>
+      {bolaoName && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+          <span style={{ fontSize:13, color:"#aab", fontWeight:700 }}>{bolaoName}</span>
+          <button onClick={onSwitchBolao} style={{ background:"none", border:"none", color:"#556", cursor:"pointer", fontSize:11, padding:0 }}>trocar ↩</button>
+        </div>
+      )}
       <div style={{ fontSize:11, color:"#445", letterSpacing:2, marginBottom:32 }}>EUA · CANADÁ · MÉXICO</div>
 
       {!creating ? (
@@ -496,7 +673,7 @@ function IdentityGate({ participants, onSelect, onAdd }) {
 // ═══════════════════════════════════════════════════════
 //  HEADER
 // ═══════════════════════════════════════════════════════
-function Header({ activePart, participants, activePid, setActivePid, apiStatus, fetchLiveScores }) {
+function Header({ activePart, participants, activePid, setActivePid, apiStatus, fetchLiveScores, activeBolaoName, onSwitchBolao }) {
   return (
     <header style={{
       background:"linear-gradient(90deg,#0b101f 0%,#10192e 100%)",
@@ -506,7 +683,12 @@ function Header({ activePart, participants, activePid, setActivePid, apiStatus, 
         <div style={{ fontSize:36, lineHeight:1 }}>🏆</div>
         <div>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:S.gold, letterSpacing:3, lineHeight:1 }}>BOLÃO COPA 2026</div>
-          <div style={{ fontSize:10, color:"#556", letterSpacing:2, marginTop:2 }}>EUA · CANADÁ · MÉXICO</div>
+          {activeBolaoName
+            ? <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:2 }}>
+                <span style={{ fontSize:10, color:"#aab", letterSpacing:1 }}>{activeBolaoName}</span>
+                <button onClick={onSwitchBolao} style={{ background:"none", border:"none", color:"#445", cursor:"pointer", fontSize:9, padding:0 }}>trocar</button>
+              </div>
+            : <div style={{ fontSize:10, color:"#556", letterSpacing:2, marginTop:2 }}>EUA · CANADÁ · MÉXICO</div>}
         </div>
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
           <button onClick={fetchLiveScores} title="Atualizar placares" style={{ background:"none", border:"none", cursor:"pointer", padding:4, fontSize:16, opacity:0.7 }}>
@@ -807,7 +989,7 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
 
   const isLive   = liveScore?.status === "live";
   const isFinal  = liveScore?.status === "final";
-  const isLocked = now >= match.startTime;
+  const isLocked = now >= match.startTime - 3_600_000; // lock 1h before
   const canEdit  = !disabled && !isLocked;
 
   const actualResult = (isFinal||isLive)
