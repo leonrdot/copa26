@@ -262,11 +262,15 @@ function useFirebaseValue(path, defaultValue) {
     setReady(false);
     if (!path) { setValue(defaultValue); setReady(true); return; }
     const r = ref(db, path);
-    const unsub = onValue(r, snap => {
-      const data = snap.val();
-      setValue(data !== null ? data : defaultValue);
-      setReady(true);
-    });
+    const unsub = onValue(
+      r,
+      snap => {
+        const data = snap.val();
+        setValue(data !== null ? data : defaultValue);
+        setReady(true);
+      },
+      () => { setValue(defaultValue); setReady(true); } // permission/network error → use default
+    );
     return () => unsub();
   }, [path]); // eslint-disable-line
 
@@ -329,7 +333,8 @@ export default function BolaoApp() {
                   : null;
 
   // Bolão list (always loaded regardless of selection)
-  const [boloesMeta, saveBoloesMeta, meta_ready] = useFirebaseValue("boloes_meta", {});
+  const DEFAULT_META = { main: { name: "Bolão Principal", createdAt: 0 } };
+  const [boloesMeta, saveBoloesMeta, meta_ready] = useFirebaseValue("boloes_meta", DEFAULT_META);
 
   // Bolão-scoped data (null path = not loaded yet)
   const [participants, saveParticipants, p_ready]  = useFirebaseValue(bolaoBase ? `${bolaoBase}/participants` : null, []);
@@ -337,14 +342,7 @@ export default function BolaoApp() {
   const [extraPicks,   saveExtraPicks,   ex_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/extraPicks`   : null, {});
   const [bracket,      saveBracket,      br_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/bracket`      : null, {});
 
-  const loaded = meta_ready && p_ready && pr_ready && ex_ready && br_ready;
-
-  // Seed "main" bolão entry on first ever load (backward compat)
-  useEffect(() => {
-    if (meta_ready && Object.keys(boloesMeta).length === 0) {
-      saveBoloesMeta({ main: { name: "Bolão Principal", createdAt: 0 } });
-    }
-  }, [meta_ready]); // eslint-disable-line
+  const loaded = p_ready && pr_ready && ex_ready && br_ready;
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -435,7 +433,8 @@ export default function BolaoApp() {
     setActivePid(id);
   }
 
-  if (!meta_ready) {
+  // Spinner only while bolão data is loading (after a bolão is picked)
+  if (activeBolaoId && !loaded) {
     return (
       <div style={{ minHeight:"100vh", background:S.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
         <div style={{ color:S.gold, fontSize:48 }}>🏆</div>
