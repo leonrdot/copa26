@@ -157,7 +157,7 @@ const COLORS = [
   "#00bcd4","#ff5722","#607d8b","#795548",
 ];
 
-const POINTS_CONFIG = { result:3, exact:2, champion:15, runnerUp:8 };
+const POINTS_CONFIG = { result:1, exact:3, champion:10, runnerUp:10 };
 
 // ═══════════════════════════════════════════════════════
 //  HELPERS
