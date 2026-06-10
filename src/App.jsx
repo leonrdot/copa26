@@ -419,7 +419,7 @@ export default function BolaoApp() {
   const activePart = parts.find(p => p.id === activePid);
   const activeBolaoName = boloesMeta[activeBolaoId]?.name || null;
 
-  const showBolaoGate    = meta_ready && !activeBolaoId;
+  const showBolaoGate    = !activeBolaoId;
   const showIdentityGate = loaded && !!activeBolaoId && !parts.find(p => p.id === activePid);
 
   function handleBolaoCreate(name) {
