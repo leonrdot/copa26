@@ -138,6 +138,17 @@ function genMatches(g) {
 }
 const ALL_MATCHES = GROUPS_RAW.flatMap(genMatches);
 
+// lock time per matchday: 30min before the earliest match of that round
+const MD_LOCK_TIME = (() => {
+  const byMd = {};
+  ALL_MATCHES.forEach(m => {
+    if (!byMd[m.md] || m.startTime < byMd[m.md]) byMd[m.md] = m.startTime;
+  });
+  const result = {};
+  Object.keys(byMd).forEach(md => { result[md] = byMd[md] - 30*60*1000; });
+  return result;
+})();
+
 // Bracket rounds (48-team format: 32 → 16 → 8 → 4 → 2 → 1)
 const BRACKET_ROUNDS = [
   { id:"r32",   label:"Rodada de 32", slots:16 },
@@ -1006,7 +1017,7 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
 
   const isLive   = liveScore?.status === "live";
   const isFinal  = liveScore?.status === "final";
-  const lockTime = match.startTime - 3_600_000; // lock 1h before
+  const lockTime = MD_LOCK_TIME[match.md]; // 30min before first match of this round
   const isLocked = now >= lockTime;
   const canEdit  = !disabled && !isLocked;
   const timeLeft = fmtCountdown(lockTime - now);
