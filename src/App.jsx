@@ -185,6 +185,19 @@ function fmtTime(ts) {
   const time = d.toLocaleTimeString("pt-BR",{ hour:"2-digit", minute:"2-digit", timeZone:"America/Sao_Paulo" });
   return `${day} ${time}`;
 }
+// time left until a deadline, as a human countdown ("2d 3h", "5h 12m", "8m 30s")
+function fmtCountdown(ms) {
+  if (ms <= 0) return null;
+  const s = Math.floor(ms/1000);
+  const d = Math.floor(s/86400);
+  const h = Math.floor((s%86400)/3600);
+  const m = Math.floor((s%3600)/60);
+  const sec = s%60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${String(sec).padStart(2,"0")}s`;
+  return `${sec}s`;
+}
 
 // flag image from flagcdn.com (SVG — scales to any size, no broken URLs)
 function FlagImg({ code, size=48 }) {
@@ -345,7 +358,7 @@ export default function BolaoApp() {
   const loaded = p_ready && pr_ready && ex_ready && br_ready;
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000);
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -894,8 +907,13 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
 
   function setPred(matchId, result, home, away) {
     if (!activePid) return;
-    const next = { ...predictions, [activePid]: { ...(predictions[activePid]||{}), [matchId]: { result, home, away } } };
-    savePredictions(next);
+    const current = { ...(predictions[activePid]||{}) };
+    if (result === undefined && home === undefined && away === undefined) {
+      delete current[matchId];
+    } else {
+      current[matchId] = { result, home, away };
+    }
+    savePredictions({ ...predictions, [activePid]: current });
   }
 
   return (
@@ -988,8 +1006,11 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
 
   const isLive   = liveScore?.status === "live";
   const isFinal  = liveScore?.status === "final";
-  const isLocked = now >= match.startTime - 3_600_000; // lock 1h before
+  const lockTime = match.startTime - 3_600_000; // lock 1h before
+  const isLocked = now >= lockTime;
   const canEdit  = !disabled && !isLocked;
+  const timeLeft = fmtCountdown(lockTime - now);
+  const urgent   = lockTime - now <= 3_600_000; // under 1h to lock
 
   const actualResult = (isFinal||isLive)
     ? (liveScore.homeScore > liveScore.awayScore ? "H" : liveScore.homeScore < liveScore.awayScore ? "A" : "D")
@@ -1022,6 +1043,12 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
     }
   }
 
+  function handleReset() {
+    if (!canEdit) return;
+    setHomeInput(""); setAwayInput("");
+    onPred(undefined, undefined, undefined);
+  }
+
   const otherPreds = participants.filter(p => predictions[p.id]?.[match.id]).map(p => ({ ...p, pred: predictions[p.id][match.id] }));
 
   const resultOpts = [
@@ -1048,7 +1075,16 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
         ) : isLocked ? (
           <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(231,76,60,0.12)", color:"#e74c3c" }}>🔒 APOSTAS ENCERRADAS</span>
         ) : (
-          <span style={{ fontSize:10, color:"#667", padding:"3px 8px", borderRadius:10, background:"rgba(255,255,255,0.04)", letterSpacing:0.5 }}>⏱ {fmtTime(match.startTime)}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+            <span style={{ fontSize:10, color:"#667", padding:"3px 8px", borderRadius:10, background:"rgba(255,255,255,0.04)", letterSpacing:0.5 }}>⏱ {fmtTime(match.startTime)}</span>
+            {timeLeft && (
+              <span style={{
+                fontSize:10, fontWeight:700, letterSpacing:0.5, padding:"3px 8px", borderRadius:10,
+                background: urgent ? "rgba(231,76,60,0.14)" : "rgba(243,156,18,0.12)",
+                color: urgent ? "#e74c3c" : "#f39c12",
+              }}>⏳ fecha em {timeLeft}</span>
+            )}
+          </div>
         )}
       </div>
 
@@ -1128,11 +1164,18 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
           })}
         </div>
       ) : pred?.result ? (
-        <div style={{ display:"flex", justifyContent:"center" }}>
+        <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8 }}>
           <span style={{ background:"rgba(255,255,255,0.06)", borderRadius:8, padding:"8px 20px", fontSize:12, color:"#778" }}>
             Palpite: {pred.result==="H" ? home.name : pred.result==="A" ? away.name : "Empate"}
             {pred.home !== undefined && ` — ${pred.home}×${pred.away}`}
           </span>
+          {canEdit && (
+            <button onClick={handleReset} title="Apagar aposta" style={{
+              background:"rgba(255,80,80,0.12)", border:"1px solid rgba(255,80,80,0.25)",
+              borderRadius:6, padding:"5px 8px", cursor:"pointer", color:"#e07070",
+              fontSize:11, fontWeight:700, lineHeight:1,
+            }}>✕</button>
+          )}
         </div>
       ) : (
         <div style={{ textAlign:"center", fontSize:12, color:"#445", padding:"8px 0" }}>Apostas encerradas para este jogo</div>
