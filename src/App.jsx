@@ -303,7 +303,19 @@ function useFirebaseValue(path, defaultValue) {
     setValue(newValue);
     await set(ref(db, path), newValue);
   }
-  return [value, save, ready];
+  // Write only a single child key (e.g. one participant's subtree) so concurrent
+  // writers editing different keys don't clobber each other's data.
+  async function saveChild(childKey, childValue) {
+    if (!path) return;
+    setValue(prev => {
+      const next = { ...(prev || {}) };
+      if (childValue === undefined || childValue === null) delete next[childKey];
+      else next[childKey] = childValue;
+      return next;
+    });
+    await set(ref(db, `${path}/${childKey}`), childValue ?? null);
+  }
+  return [value, save, ready, saveChild];
 }
 
 function useIsMobile() {
@@ -362,8 +374,8 @@ export default function BolaoApp() {
 
   // Bolão-scoped data (null path = not loaded yet)
   const [participants, saveParticipants, p_ready]  = useFirebaseValue(bolaoBase ? `${bolaoBase}/participants` : null, []);
-  const [predictions,  savePredictions,  pr_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/predictions`  : null, {});
-  const [extraPicks,   saveExtraPicks,   ex_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/extraPicks`   : null, {});
+  const [predictions,  ,  pr_ready, savePredictionsChild] = useFirebaseValue(bolaoBase ? `${bolaoBase}/predictions`  : null, {});
+  const [extraPicks,   ,  ex_ready, saveExtraPicksChild]   = useFirebaseValue(bolaoBase ? `${bolaoBase}/extraPicks`   : null, {});
   const [bracket,      saveBracket,      br_ready] = useFirebaseValue(bolaoBase ? `${bolaoBase}/bracket`      : null, {});
 
   const loaded = p_ready && pr_ready && ex_ready && br_ready;
@@ -481,9 +493,9 @@ export default function BolaoApp() {
       <TabBar tab={tab} setTab={setTab} />
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
         {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} liveScores={liveScores} />}
-        {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} savePredictions={savePredictions} now={now} />}
+        {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} savePredictionsChild={savePredictionsChild} now={now} />}
         {tab==="chaveamento"   && <BracketTab bracket={bracket} saveBracket={saveBracket} />}
-        {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicks={saveExtraPicks} />}
+        {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicksChild={saveExtraPicksChild} now={now} />}
         {tab==="participantes" && <ParticipantesTab participants={parts} saveParticipants={saveParticipants} activePid={activePid} setActivePid={setActivePid} />}
       </main>
     </div>
@@ -909,7 +921,7 @@ function RankingTab({ ranking, participants, predictions, extraPicks, liveScores
 // ═══════════════════════════════════════════════════════
 //  GRUPOS TAB
 // ═══════════════════════════════════════════════════════
-function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predictions, liveScores, savePredictions, now }) {
+function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predictions, liveScores, savePredictionsChild, now }) {
   const groupMatches = ALL_MATCHES.filter(m => m.group === activeGroup);
   const groupTeams = GROUPS_RAW.find(g => g.id === activeGroup)?.teams || [];
   const activePart = participants.find(p => p.id === activePid);
@@ -924,7 +936,8 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
     } else {
       current[matchId] = { result, home, away };
     }
-    savePredictions({ ...predictions, [activePid]: current });
+    // write only this participant's subtree so concurrent editors don't clobber each other
+    savePredictionsChild(activePid, Object.keys(current).length ? current : null);
   }
 
   return (
@@ -1437,25 +1450,32 @@ function fmtSubmitTime(ts) {
   return `${day} às ${time}`;
 }
 
-function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
+// read a participant's top-scorer pick as {value, submittedAt} (handles legacy plain string)
+function readScorer(raw) {
+  return raw && typeof raw === "object" ? raw : (raw ? { value: raw, submittedAt: null } : null);
+}
+
+function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicksChild, now }) {
   const [search, setSearch] = useState("");
+  const [viewTab, setViewTab] = useState("champion");
   const activePart = participants.find(p => p.id === activePid);
   const myPicks = activePid ? (extraPicks[activePid] || {}) : {};
 
+  // Specials lock 30min before the first match of round 1 (same deadline as round 1)
+  const locked = now >= MD_LOCK_TIME[1];
+
   // Artilheiro: stored as {value, submittedAt} or legacy plain string
-  const rawScorer = myPicks.topScorer;
-  const scorerObj = rawScorer && typeof rawScorer === "object" ? rawScorer : (rawScorer ? { value: rawScorer, submittedAt: null } : null);
+  const scorerObj = readScorer(myPicks.topScorer);
   const [editingScorer, setEditingScorer] = useState(false);
   const [scorerInput, setScorerInput]     = useState("");
 
   function pick(field, value) {
-    if (!activePid) return;
-    const next = { ...extraPicks, [activePid]: { ...(extraPicks[activePid]||{}), [field]: value } };
-    saveExtraPicks(next);
+    if (!activePid || locked) return;
+    saveExtraPicksChild(activePid, { ...(extraPicks[activePid]||{}), [field]: value });
   }
 
   function submitScorer() {
-    if (!scorerInput.trim()) return;
+    if (!scorerInput.trim() || locked) return;
     pick("topScorer", { value: scorerInput.trim(), submittedAt: Date.now() });
     setEditingScorer(false);
   }
@@ -1470,23 +1490,55 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
 
   if (!activePid) return <EmptyState icon="👆" title="Selecione um participante" subtitle="Escolha quem está apostando no topo da tela." />;
 
+  const viewTabs = [
+    { key:"champion", label:"🏆 Campeão" },
+    { key:"runnerUp", label:"🥈 Vice" },
+    { key:"topScorer", label:"⚽ Artilheiro" },
+  ];
+
   return (
     <div>
       <SectionTitle icon="🥇" title={`Palpites Especiais — ${activePart?.name}`} />
 
+      {locked && (
+        <div style={{ ...S.card, background:"rgba(231,76,60,0.1)", border:"1px solid rgba(231,76,60,0.3)", marginBottom:16, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:20 }}>🔒</span>
+          <span style={{ fontSize:13, color:"#e74c3c", fontWeight:600 }}>Escolhas de campeão, vice e artilheiro encerradas (a 1ª rodada já começou).</span>
+        </div>
+      )}
+
       {participants.length > 1 && (
         <div style={{ ...S.card, marginBottom:20 }}>
-          <div style={{ fontSize:12, color:"#556", letterSpacing:1, fontWeight:700, marginBottom:10 }}>TODOS OS PALPITES DE CAMPEÃO</div>
+          <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+            {viewTabs.map(t => (
+              <button key={t.key} onClick={() => setViewTab(t.key)} style={{
+                flex:1, background: viewTab===t.key ? "rgba(232,184,75,0.15)" : "rgba(255,255,255,0.04)",
+                border:`1px solid ${viewTab===t.key ? "rgba(232,184,75,0.4)" : "rgba(255,255,255,0.08)"}`,
+                borderRadius:8, color: viewTab===t.key ? S.gold : "#889", padding:"7px 6px", cursor:"pointer",
+                fontFamily:"'Nunito',sans-serif", fontSize:12, fontWeight:700, transition:"all 0.15s",
+              }}>{t.label}</button>
+            ))}
+          </div>
           {participants.map(p => {
-            const champCode = extraPicks[p.id]?.champion;
-            const champ = champCode ? TEAMS[champCode] : null;
+            const picks = extraPicks[p.id] || {};
+            let content;
+            if (viewTab === "topScorer") {
+              const sc = readScorer(picks.topScorer);
+              content = sc?.value
+                ? <span style={{ fontSize:13, fontWeight:600 }}>{sc.value}</span>
+                : <span style={{ fontSize:12, color:"#445" }}>Não definido</span>;
+            } else {
+              const code = picks[viewTab];
+              const team = code ? TEAMS[code] : null;
+              content = team
+                ? <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:13 }}><FlagImg code={code} size={20} />{team.name}</span>
+                : <span style={{ fontSize:12, color:"#445" }}>Não definido</span>;
+            }
             return (
               <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                 <Avatar participant={p} size={28} />
                 <span style={{ flex:1, fontSize:13, fontWeight:600 }}>{p.name}</span>
-                {champ
-                  ? <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:13 }}><FlagImg code={champCode} size={20} />{champ.name}</span>
-                  : <span style={{ fontSize:12, color:"#445" }}>Não definido</span>}
+                {content}
               </div>
             );
           })}
@@ -1507,7 +1559,7 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
             </div>
           )}
         </div>
-        <TeamPicker value={myPicks.champion} onPick={v => pick("champion",v)} highlight={S.gold} search={search} setSearch={setSearch} filtered={filtered} />
+        {!locked && <TeamPicker value={myPicks.champion} onPick={v => pick("champion",v)} highlight={S.gold} search={search} setSearch={setSearch} filtered={filtered} />}
       </div>
 
       <div style={{ ...S.card, border:`1px solid rgba(176,184,200,0.15)`, marginBottom:12 }}>
@@ -1524,7 +1576,7 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
             </div>
           )}
         </div>
-        <TeamPicker value={myPicks.runnerUp} onPick={v => pick("runnerUp",v)} highlight={S.silver} search={search} setSearch={setSearch} filtered={filtered} />
+        {!locked && <TeamPicker value={myPicks.runnerUp} onPick={v => pick("runnerUp",v)} highlight={S.silver} search={search} setSearch={setSearch} filtered={filtered} />}
       </div>
 
       <div style={{ ...S.card }}>
@@ -1536,7 +1588,12 @@ function CampeaoTab({ activePid, participants, extraPicks, saveExtraPicks }) {
           </div>
         </div>
 
-        {scorerObj && !editingScorer ? (
+        {locked ? (
+          <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:"12px 14px" }}>
+            <div style={{ fontWeight:700, fontSize:15, color: scorerObj?.value ? "#e8eaf0" : "#556" }}>{scorerObj?.value || "Não definido"}</div>
+            {scorerObj?.submittedAt && <div style={{ fontSize:11, color:"#556", marginTop:3 }}>Enviado em {fmtSubmitTime(scorerObj.submittedAt)}</div>}
+          </div>
+        ) : scorerObj && !editingScorer ? (
           <div style={{ background:"rgba(46,204,113,0.06)", border:"1px solid rgba(46,204,113,0.2)", borderRadius:8, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:700, fontSize:15, color:"#e8eaf0" }}>{scorerObj.value}</div>
