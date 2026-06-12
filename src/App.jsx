@@ -149,6 +149,38 @@ const MD_LOCK_TIME = (() => {
   return result;
 })();
 
+// English / common aliases → our FIFA team code, for matching ESPN API results
+const TEAM_ALIASES = {
+  MEX:["mexico"], RSA:["south africa"], KOR:["south korea","korea republic","korea"],
+  CZE:["czechia","czech republic"], CAN:["canada"], BIH:["bosnia and herzegovina","bosnia"],
+  QAT:["qatar"], SUI:["switzerland"], BRA:["brazil"], MAR:["morocco"], HAI:["haiti"],
+  SCO:["scotland"], USA:["united states","usa"], PAR:["paraguay"], AUS:["australia"],
+  TUR:["turkey","turkiye"], GER:["germany"], CUW:["curacao"],
+  CIV:["ivory coast","cote divoire"], ECU:["ecuador"], NED:["netherlands","holland"],
+  JPN:["japan"], SWE:["sweden"], TUN:["tunisia"], BEL:["belgium"], EGY:["egypt"],
+  IRN:["iran","ir iran"], NZL:["new zealand"], ESP:["spain"], CPV:["cape verde","cabo verde"],
+  KSA:["saudi arabia"], URU:["uruguay"], FRA:["france"], SEN:["senegal"], IRQ:["iraq"],
+  NOR:["norway"], ARG:["argentina"], ALG:["algeria"], AUT:["austria"], JOR:["jordan"],
+  POR:["portugal"], COD:["dr congo","congo dr","democratic republic of the congo","congo"],
+  UZB:["uzbekistan"], COL:["colombia"], ENG:["england"], CRO:["croatia"], GHA:["ghana"], PAN:["panama"],
+};
+const normTeam = s => (s||"").toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");
+const NAME_INDEX = {};
+Object.entries(TEAM_ALIASES).forEach(([code, aliases]) => {
+  aliases.forEach(a => { NAME_INDEX[normTeam(a)] = code; });
+});
+// Resolve an ESPN team object to our FIFA code via abbreviation or name
+function resolveTeamCode(team) {
+  if (!team) return null;
+  const abbr = (team.abbreviation || "").toUpperCase();
+  if (TEAMS[abbr]) return abbr;
+  for (const field of [team.displayName, team.shortDisplayName, team.location, team.name]) {
+    const c = NAME_INDEX[normTeam(field)];
+    if (c) return c;
+  }
+  return null;
+}
+
 // Bracket rounds (48-team format: 32 → 16 → 8 → 4 → 2 → 1)
 const BRACKET_ROUNDS = [
   { id:"r32",   label:"Rodada de 32", slots:16 },
@@ -404,50 +436,50 @@ export default function BolaoApp() {
   async function fetchLiveScores() {
     setApiStatus("fetching");
     try {
+      // Fetch the entire tournament window in one call. The default scoreboard
+      // only returns *today's* games, so historical results would vanish.
       const res = await fetch(
-        "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
-        { signal: AbortSignal.timeout(8000) }
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260611-20260719&limit=1000",
+        { signal: AbortSignal.timeout(10000) }
       );
       const data = await res.json();
-      const scores = {};
-      // Build reverse lookup: ESPN abbreviation/shortName → our team code
-      const espnToOur = {};
-      Object.keys(TEAMS).forEach(code => { espnToOur[code] = code; }); // identity first
+      const scores = {}; // keyed by our matchId (e.g. "A1")
       (data.events || []).forEach(ev => {
         const comp = ev.competitions?.[0];
         if (!comp) return;
-        const completed = comp.status?.type?.completed;
+        const completed  = comp.status?.type?.completed;
         const statusName = comp.status?.type?.name || "";
-        const home = comp.competitors?.find(c => c.homeAway === "home");
-        const away = comp.competitors?.find(c => c.homeAway === "away");
-        if (!home || !away) return;
-        const entry = {
-          homeScore: parseInt(home.score) || 0,
-          awayScore: parseInt(away.score) || 0,
+        const hc = comp.competitors?.find(c => c.homeAway === "home");
+        const ac = comp.competitors?.find(c => c.homeAway === "away");
+        if (!hc || !ac) return;
+        const codeH = resolveTeamCode(hc.team);
+        const codeA = resolveTeamCode(ac.team);
+        if (!codeH || !codeA) return;
+        // find our group-stage match with the same pair of teams (any order)
+        const match = ALL_MATCHES.find(m =>
+          (m.home === codeH && m.away === codeA) || (m.home === codeA && m.away === codeH));
+        if (!match) return;
+        const espnHome = parseInt(hc.score) || 0;
+        const espnAway = parseInt(ac.score) || 0;
+        // orient scores to OUR schedule's home/away
+        const ourHome = match.home === codeH ? espnHome : espnAway;
+        const ourAway = match.home === codeH ? espnAway : espnHome;
+        scores[match.id] = {
+          home: ourHome, away: ourAway,
           status: completed ? "final" : statusName.includes("PROGRESS") ? "live" : "scheduled",
           displayClock: comp.status?.displayClock || "",
         };
-        // Index by ESPN abbreviation (primary) and also try to find our code via countryCode match
-        const homeAbbr = home.team.abbreviation;
-        const awayAbbr = away.team.abbreviation;
-        scores[`${homeAbbr}vs${awayAbbr}`] = entry;
-        // Also index by our team code if different (match by country code from ESPN)
-        const homeCC  = home.team.countryCode?.toLowerCase();
-        const awayCC  = away.team.countryCode?.toLowerCase();
-        const ourHome = Object.keys(TEAMS).find(c => TEAMS[c].cc === homeCC);
-        const ourAway = Object.keys(TEAMS).find(c => TEAMS[c].cc === awayCC);
-        if (ourHome && ourAway) scores[`${ourHome}vs${ourAway}`] = entry;
       });
       setLiveScores(scores);
       setApiStatus("ok");
-      // Persist finals to Firebase using matchId as key
+      // Persist finals to Firebase (keyed by matchId) so the ranking survives reloads
       const newStored = { ...storedResults };
       let changed = false;
-      Object.entries(scores).forEach(([abbr, v]) => {
+      Object.entries(scores).forEach(([mid, v]) => {
         if (v.status !== "final") return;
-        const match = ALL_MATCHES.find(m => `${m.home}vs${m.away}` === abbr || abbr.includes(m.home) && abbr.includes(m.away));
-        if (match && !newStored[match.id]) {
-          newStored[match.id] = { home: v.homeScore, away: v.awayScore };
+        const cur = newStored[mid];
+        if (!cur || cur.home !== v.home || cur.away !== v.away) {
+          newStored[mid] = { home: v.home, away: v.away };
           changed = true;
         }
       });
@@ -461,13 +493,13 @@ export default function BolaoApp() {
     ALL_MATCHES.forEach(m => {
       const pred = preds[m.id];
       if (!pred) return;
-      // storedResults keyed by matchId (e.g. "A1"), liveScores keyed by "HOMEvs AWAY"
+      // both keyed by matchId; manual stored result overrides, else a final from the API
       const stored = storedResults[m.id];
-      const live   = liveScores[`${m.home}vs${m.away}`];
+      const live   = liveScores[m.id];
       const result = stored || (live?.status === "final" ? live : null);
       if (!result) return;
-      const homeScore = result.home ?? result.homeScore;
-      const awayScore = result.away ?? result.awayScore;
+      const homeScore = result.home;
+      const awayScore = result.away;
       const actual = homeScore > awayScore ? "H" : homeScore < awayScore ? "A" : "D";
       if (pred.result === actual) {
         pts += POINTS_CONFIG.result; correct++;
@@ -1047,9 +1079,16 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
       {[1,2,3].map(md => (
         <div key={md}>
           <div style={{ fontSize:11, color:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4 }}>RODADA {md}</div>
-          {groupMatches.filter(m => m.md===md).map(m => (
-            <MatchCard key={m.id} match={m} pred={activePid ? predictions[activePid]?.[m.id] : null} liveScore={liveScores[`${m.home}vs${m.away}`] || (storedResults[m.id] ? { status:"final", homeScore:storedResults[m.id].home, awayScore:storedResults[m.id].away } : null)} onPred={(r,h,a) => setPred(m.id,r,h,a)} disabled={!activePid} participants={participants} predictions={predictions} now={now} />
-          ))}
+          {groupMatches.filter(m => m.md===md).map(m => {
+            const ls = liveScores[m.id];
+            const sr = storedResults[m.id];
+            const liveScore = ls ? { status:ls.status, homeScore:ls.home, awayScore:ls.away, displayClock:ls.displayClock }
+                            : sr ? { status:"final", homeScore:sr.home, awayScore:sr.away }
+                            : null;
+            return (
+              <MatchCard key={m.id} match={m} pred={activePid ? predictions[activePid]?.[m.id] : null} liveScore={liveScore} onPred={(r,h,a) => setPred(m.id,r,h,a)} disabled={!activePid} participants={participants} predictions={predictions} now={now} />
+            );
+          })}
         </div>
       ))}
     </div>
@@ -1779,7 +1818,7 @@ function ResultadosTab({ storedResults, saveStoredResults, liveScores }) {
           <div style={{ fontSize:11, color:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4 }}>RODADA {md}</div>
           {groupMatches.filter(m => m.md===md).map(m => {
             const stored = storedResults[m.id];
-            const live   = liveScores[`${m.home}vs${m.away}`];
+            const live   = liveScores[m.id];
             const homeTeam = TEAMS[m.home];
             const awayTeam = TEAMS[m.away];
             return (
