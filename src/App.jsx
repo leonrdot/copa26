@@ -368,6 +368,9 @@ export default function BolaoApp() {
                   : activeBolaoId             ? `boloes/${activeBolaoId}`
                   : null;
 
+  // Global match results store — persists finals across page reloads for all users
+  const [storedResults, saveStoredResults] = useFirebaseValue("matchResults", {});
+
   // Bolão list (always loaded regardless of selection)
   const DEFAULT_META = { main: { name: "Bolão Principal", createdAt: 0 } };
   const [boloesMeta, saveBoloesMeta, meta_ready] = useFirebaseValue("boloes_meta", DEFAULT_META);
@@ -437,6 +440,13 @@ export default function BolaoApp() {
       });
       setLiveScores(scores);
       setApiStatus("ok");
+      // Persist finals to Firebase so the ranking survives page reloads
+      const newStored = { ...storedResults };
+      let changed = false;
+      Object.entries(scores).forEach(([k, v]) => {
+        if (v.status === "final" && !newStored[k]) { newStored[k] = v; changed = true; }
+      });
+      if (changed) saveStoredResults(newStored);
     } catch { setApiStatus("error"); }
   }
 
@@ -446,7 +456,8 @@ export default function BolaoApp() {
     ALL_MATCHES.forEach(m => {
       const pred = preds[m.id];
       if (!pred) return;
-      const live = liveScores[`${m.home}vs${m.away}`];
+      const key = `${m.home}vs${m.away}`;
+      const live = liveScores[key] || storedResults[key];
       if (!live || live.status !== "final") return;
       const actual = live.homeScore > live.awayScore ? "H" : live.homeScore < live.awayScore ? "A" : "D";
       if (pred.result === actual) {
@@ -505,7 +516,7 @@ export default function BolaoApp() {
       <TabBar tab={tab} setTab={setTab} />
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
         {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} liveScores={liveScores} />}
-        {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} savePredictionsChild={savePredictionsChild} now={now} />}
+        {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} storedResults={storedResults} savePredictionsChild={savePredictionsChild} now={now} />}
         {tab==="chaveamento"   && <BracketTab bracket={bracket} saveBracket={saveBracket} />}
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicksChild={saveExtraPicksChild} now={now} />}
         {tab==="participantes" && <ParticipantesTab participants={parts} saveParticipants={saveParticipants} activePid={activePid} setActivePid={setActivePid} />}
@@ -940,7 +951,7 @@ function RankingTab({ ranking, participants, predictions, extraPicks, liveScores
 // ═══════════════════════════════════════════════════════
 //  GRUPOS TAB
 // ═══════════════════════════════════════════════════════
-function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predictions, liveScores, savePredictionsChild, now }) {
+function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predictions, liveScores, storedResults, savePredictionsChild, now }) {
   const groupMatches = ALL_MATCHES.filter(m => m.group === activeGroup);
   const groupTeams = GROUPS_RAW.find(g => g.id === activeGroup)?.teams || [];
   const activePart = participants.find(p => p.id === activePid);
@@ -1026,7 +1037,7 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
         <div key={md}>
           <div style={{ fontSize:11, color:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4 }}>RODADA {md}</div>
           {groupMatches.filter(m => m.md===md).map(m => (
-            <MatchCard key={m.id} match={m} pred={activePid ? predictions[activePid]?.[m.id] : null} liveScore={liveScores[`${m.home}vs${m.away}`]} onPred={(r,h,a) => setPred(m.id,r,h,a)} disabled={!activePid} participants={participants} predictions={predictions} now={now} />
+            <MatchCard key={m.id} match={m} pred={activePid ? predictions[activePid]?.[m.id] : null} liveScore={liveScores[`${m.home}vs${m.away}`] || storedResults[`${m.home}vs${m.away}`]} onPred={(r,h,a) => setPred(m.id,r,h,a)} disabled={!activePid} participants={participants} predictions={predictions} now={now} />
           ))}
         </div>
       ))}
