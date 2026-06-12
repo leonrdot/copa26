@@ -440,11 +440,16 @@ export default function BolaoApp() {
       });
       setLiveScores(scores);
       setApiStatus("ok");
-      // Persist finals to Firebase so the ranking survives page reloads
+      // Persist finals to Firebase using matchId as key
       const newStored = { ...storedResults };
       let changed = false;
-      Object.entries(scores).forEach(([k, v]) => {
-        if (v.status === "final" && !newStored[k]) { newStored[k] = v; changed = true; }
+      Object.entries(scores).forEach(([abbr, v]) => {
+        if (v.status !== "final") return;
+        const match = ALL_MATCHES.find(m => `${m.home}vs${m.away}` === abbr || abbr.includes(m.home) && abbr.includes(m.away));
+        if (match && !newStored[match.id]) {
+          newStored[match.id] = { home: v.homeScore, away: v.awayScore };
+          changed = true;
+        }
       });
       if (changed) saveStoredResults(newStored);
     } catch { setApiStatus("error"); }
@@ -456,13 +461,17 @@ export default function BolaoApp() {
     ALL_MATCHES.forEach(m => {
       const pred = preds[m.id];
       if (!pred) return;
-      const key = `${m.home}vs${m.away}`;
-      const live = liveScores[key] || storedResults[key];
-      if (!live || live.status !== "final") return;
-      const actual = live.homeScore > live.awayScore ? "H" : live.homeScore < live.awayScore ? "A" : "D";
+      // storedResults keyed by matchId (e.g. "A1"), liveScores keyed by "HOMEvs AWAY"
+      const stored = storedResults[m.id];
+      const live   = liveScores[`${m.home}vs${m.away}`];
+      const result = stored || (live?.status === "final" ? live : null);
+      if (!result) return;
+      const homeScore = result.home ?? result.homeScore;
+      const awayScore = result.away ?? result.awayScore;
+      const actual = homeScore > awayScore ? "H" : homeScore < awayScore ? "A" : "D";
       if (pred.result === actual) {
         pts += POINTS_CONFIG.result; correct++;
-        if (String(pred.home) === String(live.homeScore) && String(pred.away) === String(live.awayScore)) {
+        if (String(pred.home) === String(homeScore) && String(pred.away) === String(awayScore)) {
           pts += POINTS_CONFIG.exact; exact++;
         }
       }
@@ -517,6 +526,7 @@ export default function BolaoApp() {
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
         {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} liveScores={liveScores} />}
         {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} storedResults={storedResults} savePredictionsChild={savePredictionsChild} now={now} />}
+        {tab==="resultados"    && <ResultadosTab storedResults={storedResults} saveStoredResults={saveStoredResults} liveScores={liveScores} />}
         {tab==="chaveamento"   && <BracketTab bracket={bracket} saveBracket={saveBracket} />}
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicksChild={saveExtraPicksChild} now={now} />}
         {tab==="participantes" && <ParticipantesTab participants={parts} saveParticipants={saveParticipants} activePid={activePid} setActivePid={setActivePid} />}
@@ -776,6 +786,7 @@ function TabBar({ tab, setTab }) {
   const tabs = [
     { id:"ranking",       icon:"🏅", label:"Ranking" },
     { id:"grupos",        icon:"📋", label:"Grupos" },
+    { id:"resultados",    icon:"⚽", label:"Resultados" },
     { id:"chaveamento",   icon:"🏆", label:"Chaveamento" },
     { id:"campeao",       icon:"🥇", label:"Campeão" },
     { id:"participantes", icon:"👥", label:"Participantes" },
@@ -1037,7 +1048,7 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
         <div key={md}>
           <div style={{ fontSize:11, color:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4 }}>RODADA {md}</div>
           {groupMatches.filter(m => m.md===md).map(m => (
-            <MatchCard key={m.id} match={m} pred={activePid ? predictions[activePid]?.[m.id] : null} liveScore={liveScores[`${m.home}vs${m.away}`] || storedResults[`${m.home}vs${m.away}`]} onPred={(r,h,a) => setPred(m.id,r,h,a)} disabled={!activePid} participants={participants} predictions={predictions} now={now} />
+            <MatchCard key={m.id} match={m} pred={activePid ? predictions[activePid]?.[m.id] : null} liveScore={liveScores[`${m.home}vs${m.away}`] || (storedResults[m.id] ? { status:"final", homeScore:storedResults[m.id].home, awayScore:storedResults[m.id].away } : null)} onPred={(r,h,a) => setPred(m.id,r,h,a)} disabled={!activePid} participants={participants} predictions={predictions} now={now} />
           ))}
         </div>
       ))}
@@ -1707,6 +1718,167 @@ function TeamPicker({ value, onPick, highlight, search, setSearch, filtered }) {
 
 // ═══════════════════════════════════════════════════════
 //  PARTICIPANTES TAB
+// ═══════════════════════════════════════════════════════
+//  RESULTADOS TAB  (manual result entry)
+// ═══════════════════════════════════════════════════════
+function ResultadosTab({ storedResults, saveStoredResults, liveScores }) {
+  const [activeGroup, setActiveGroup] = useState("A");
+  const mobile = useIsMobile();
+
+  function setResult(matchId, homeVal, awayVal) {
+    const h = parseInt(homeVal);
+    const a = parseInt(awayVal);
+    if (isNaN(h) || isNaN(a)) return;
+    saveStoredResults({ ...storedResults, [matchId]: { home: h, away: a } });
+  }
+
+  function clearResult(matchId) {
+    const next = { ...storedResults };
+    delete next[matchId];
+    saveStoredResults(next);
+  }
+
+  const groupMatches = ALL_MATCHES.filter(m => m.group === activeGroup);
+
+  return (
+    <div>
+      <SectionTitle icon="⚽" title="Resultados dos Jogos" />
+      <div style={{ ...S.card, background:"rgba(232,184,75,0.05)", border:"1px solid rgba(232,184,75,0.2)", marginBottom:16, fontSize:13, color:"#aab", lineHeight:1.6 }}>
+        Insira o placar real de cada jogo encerrado. O ranking é calculado automaticamente a partir desses resultados.
+      </div>
+
+      {/* Group picker */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+        {GROUPS_RAW.map(g => {
+          const done = ALL_MATCHES.filter(m => m.group===g.id && storedResults[m.id]!=null).length;
+          return (
+            <button key={g.id} onClick={() => setActiveGroup(g.id)} style={{
+              background: activeGroup===g.id ? S.gold : "rgba(255,255,255,0.06)",
+              color: activeGroup===g.id ? "#080c18" : "#aab",
+              border:"none", borderRadius:8, padding:"8px 14px", cursor:"pointer",
+              fontFamily:"'Bebas Neue',sans-serif", fontSize:16, fontWeight:700,
+              letterSpacing:1, position:"relative", transition:"all 0.2s", minWidth:48,
+            }}>
+              {g.id}
+              {done > 0 && (
+                <span style={{
+                  position:"absolute", top:-4, right:-4,
+                  background: done===6 ? "#2ecc71" : "#f39c12",
+                  borderRadius:"50%", width:14, height:14, fontSize:9,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  color:"#fff", fontFamily:"'Nunito',sans-serif", fontWeight:700,
+                }}>{done===6?"✓":done}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {[1,2,3].map(md => (
+        <div key={md}>
+          <div style={{ fontSize:11, color:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4 }}>RODADA {md}</div>
+          {groupMatches.filter(m => m.md===md).map(m => {
+            const stored = storedResults[m.id];
+            const live   = liveScores[`${m.home}vs${m.away}`];
+            const homeTeam = TEAMS[m.home];
+            const awayTeam = TEAMS[m.away];
+            return (
+              <ResultRow key={m.id} match={m} homeTeam={homeTeam} awayTeam={awayTeam}
+                stored={stored} live={live} mobile={mobile}
+                onSet={(h,a) => setResult(m.id, h, a)}
+                onClear={() => clearResult(m.id)} />
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResultRow({ match, homeTeam, awayTeam, stored, live, mobile, onSet, onClear }) {
+  const [homeVal, setHomeVal] = useState(stored != null ? String(stored.home) : "");
+  const [awayVal, setAwayVal] = useState(stored != null ? String(stored.away) : "");
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setHomeVal(stored != null ? String(stored.home) : "");
+    setAwayVal(stored != null ? String(stored.away) : "");
+    setDirty(false);
+  }, [stored]);
+
+  function handleChange(side, val) {
+    const v = val.replace(/\D/g, "").slice(0, 2);
+    if (side === "home") setHomeVal(v); else setAwayVal(v);
+    setDirty(true);
+  }
+
+  function handleSave() {
+    if (homeVal === "" || awayVal === "") return;
+    onSet(homeVal, awayVal);
+    setDirty(false);
+  }
+
+  const isSaved = stored != null && !dirty;
+  const h = parseInt(homeVal);
+  const a = parseInt(awayVal);
+  const canSave = dirty && homeVal !== "" && awayVal !== "";
+
+  return (
+    <div style={{
+      ...S.card, marginBottom:8,
+      border: isSaved ? "1px solid rgba(46,204,113,0.25)" : "1px solid rgba(255,255,255,0.06)",
+      display:"flex", alignItems:"center", gap:mobile?8:14,
+    }}>
+      {/* Home */}
+      <div style={{ flex:1, display:"flex", alignItems:"center", gap:6, justifyContent:"flex-end" }}>
+        {!mobile && <span style={{ fontSize:13, fontWeight:700, textAlign:"right" }}>{homeTeam.name}</span>}
+        <FlagImg code={match.home} size={mobile?28:36} />
+      </div>
+
+      {/* Score inputs */}
+      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <input
+          value={homeVal} onChange={e => handleChange("home", e.target.value)}
+          onKeyDown={e => e.key==="Enter" && handleSave()}
+          placeholder="–" maxLength={2}
+          style={{ width:44, textAlign:"center", background:"rgba(255,255,255,0.08)", border:`1px solid ${isSaved?"rgba(46,204,113,0.4)":"rgba(255,255,255,0.15)"}`, borderRadius:8, color:"#e8eaf0", padding:"8px 4px", fontSize:20, fontFamily:"'Bebas Neue',sans-serif", outline:"none" }}
+        />
+        <span style={{ color:"#445", fontSize:16, fontWeight:700 }}>×</span>
+        <input
+          value={awayVal} onChange={e => handleChange("away", e.target.value)}
+          onKeyDown={e => e.key==="Enter" && handleSave()}
+          placeholder="–" maxLength={2}
+          style={{ width:44, textAlign:"center", background:"rgba(255,255,255,0.08)", border:`1px solid ${isSaved?"rgba(46,204,113,0.4)":"rgba(255,255,255,0.15)"}`, borderRadius:8, color:"#e8eaf0", padding:"8px 4px", fontSize:20, fontFamily:"'Bebas Neue',sans-serif", outline:"none" }}
+        />
+      </div>
+
+      {/* Away */}
+      <div style={{ flex:1, display:"flex", alignItems:"center", gap:6 }}>
+        <FlagImg code={match.away} size={mobile?28:36} />
+        {!mobile && <span style={{ fontSize:13, fontWeight:700 }}>{awayTeam.name}</span>}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display:"flex", gap:4 }}>
+        {canSave && (
+          <button onClick={handleSave} style={{
+            background:"rgba(46,204,113,0.2)", border:"1px solid rgba(46,204,113,0.4)",
+            borderRadius:6, padding:"6px 10px", cursor:"pointer", color:"#2ecc71",
+            fontSize:12, fontWeight:700,
+          }}>✓</button>
+        )}
+        {isSaved && (
+          <button onClick={onClear} title="Apagar resultado" style={{
+            background:"rgba(255,80,80,0.1)", border:"1px solid rgba(255,80,80,0.2)",
+            borderRadius:6, padding:"6px 10px", cursor:"pointer", color:"#e07070",
+            fontSize:12, fontWeight:700,
+          }}>✕</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 function ParticipantesTab({ participants, saveParticipants, activePid, setActivePid }) {
   const [name, setName] = useState("");
