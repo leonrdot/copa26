@@ -139,13 +139,18 @@ function genMatches(g) {
 const ALL_MATCHES = GROUPS_RAW.flatMap(genMatches);
 
 // lock time per matchday: 30min before the earliest match of that round
+// Round 1 gets a 10h grace period for late registrations
+const ROUND1_GRACE_MS = 10 * 60 * 60 * 1000;
 const MD_LOCK_TIME = (() => {
   const byMd = {};
   ALL_MATCHES.forEach(m => {
     if (!byMd[m.md] || m.startTime < byMd[m.md]) byMd[m.md] = m.startTime;
   });
   const result = {};
-  Object.keys(byMd).forEach(md => { result[md] = byMd[md] - 30*60*1000; });
+  Object.keys(byMd).forEach(md => {
+    const base = byMd[md] - 30*60*1000;
+    result[md] = Number(md) === 1 ? base + ROUND1_GRACE_MS : base;
+  });
   return result;
 })();
 
@@ -1201,9 +1206,28 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
         {/* Score */}
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
           {(isLive||isFinal) ? (
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:mobile?28:36, color:isLive?S.green:S.silver, letterSpacing:3, lineHeight:1 }}>
-              {liveScore.homeScore} – {liveScore.awayScore}
-            </div>
+            <>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:mobile?28:36, color:isLive?S.green:S.silver, letterSpacing:3, lineHeight:1 }}>
+                {liveScore.homeScore} – {liveScore.awayScore}
+              </div>
+              {pred?.result && (() => {
+                const gotResult = pred.result === actualResult;
+                const gotExact  = gotResult && String(pred.home) === String(liveScore.homeScore) && String(pred.away) === String(liveScore.awayScore);
+                const hasPlacar = pred.home !== undefined && pred.away !== undefined;
+                return (
+                  <div style={{
+                    fontSize:11, fontWeight:700, letterSpacing:0.3, padding:"2px 8px", borderRadius:8,
+                    background: gotExact ? "rgba(232,184,75,0.18)" : gotResult ? "rgba(46,204,113,0.15)" : "rgba(231,76,60,0.12)",
+                    color:       gotExact ? S.gold               : gotResult ? "#2ecc71"              : "#e74c3c",
+                    display:"flex", alignItems:"center", gap:4,
+                  }}>
+                    {gotExact ? "🎯" : gotResult ? "✅" : "❌"}
+                    {hasPlacar ? `${pred.home}×${pred.away}` : (pred.result === "H" ? home.name : pred.result === "A" ? away.name : "Empate")}
+                    {gotExact ? " — placar exato!" : gotResult ? " — resultado certo" : " — errou"}
+                  </div>
+                );
+              })()}
+            </>
           ) : (
             <div style={{ display:"flex", alignItems:"center", gap:mobile?5:8 }}>
               <ScoreStepper value={homeInput} onChange={v => handleScore("home", v)} disabled={!canEdit} />
