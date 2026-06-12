@@ -407,6 +407,9 @@ export default function BolaoApp() {
       );
       const data = await res.json();
       const scores = {};
+      // Build reverse lookup: ESPN abbreviation/shortName → our team code
+      const espnToOur = {};
+      Object.keys(TEAMS).forEach(code => { espnToOur[code] = code; }); // identity first
       (data.events || []).forEach(ev => {
         const comp = ev.competitions?.[0];
         if (!comp) return;
@@ -414,14 +417,23 @@ export default function BolaoApp() {
         const statusName = comp.status?.type?.name || "";
         const home = comp.competitors?.find(c => c.homeAway === "home");
         const away = comp.competitors?.find(c => c.homeAway === "away");
-        if (home && away) {
-          scores[`${home.team.abbreviation}vs${away.team.abbreviation}`] = {
-            homeScore: parseInt(home.score) || 0,
-            awayScore: parseInt(away.score) || 0,
-            status: completed ? "final" : statusName.includes("PROGRESS") ? "live" : "scheduled",
-            displayClock: comp.status?.displayClock || "",
-          };
-        }
+        if (!home || !away) return;
+        const entry = {
+          homeScore: parseInt(home.score) || 0,
+          awayScore: parseInt(away.score) || 0,
+          status: completed ? "final" : statusName.includes("PROGRESS") ? "live" : "scheduled",
+          displayClock: comp.status?.displayClock || "",
+        };
+        // Index by ESPN abbreviation (primary) and also try to find our code via countryCode match
+        const homeAbbr = home.team.abbreviation;
+        const awayAbbr = away.team.abbreviation;
+        scores[`${homeAbbr}vs${awayAbbr}`] = entry;
+        // Also index by our team code if different (match by country code from ESPN)
+        const homeCC  = home.team.countryCode?.toLowerCase();
+        const awayCC  = away.team.countryCode?.toLowerCase();
+        const ourHome = Object.keys(TEAMS).find(c => TEAMS[c].cc === homeCC);
+        const ourAway = Object.keys(TEAMS).find(c => TEAMS[c].cc === awayCC);
+        if (ourHome && ourAway) scores[`${ourHome}vs${ourAway}`] = entry;
       });
       setLiveScores(scores);
       setApiStatus("ok");
@@ -848,9 +860,16 @@ function RankingTab({ ranking, participants, predictions, extraPicks, liveScores
   if (participants.length === 0) {
     return <EmptyState icon="👥" title="Nenhum participante ainda" subtitle='Vá em "Participantes" para adicionar os jogadores do bolão.' />;
   }
+  const allZero = ranking.every(p => p.pts === 0 && p.correct === 0);
   return (
     <div>
       <SectionTitle icon="🏅" title="Classificação Geral" />
+      {allZero && ranking.some(p => p.preds > 0) && (
+        <div style={{ ...S.card, background:"rgba(232,184,75,0.06)", border:"1px solid rgba(232,184,75,0.2)", marginBottom:16, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:20 }}>⏳</span>
+          <span style={{ fontSize:13, color:"#aab" }}>Pontos aparecem assim que os resultados forem confirmados. A classificação já está ordenada por quantidade de palpites.</span>
+        </div>
+      )}
       <div style={{ ...S.card, background:"linear-gradient(135deg,rgba(232,184,75,0.08),rgba(232,184,75,0.02))", border:`1px solid rgba(232,184,75,0.2)`, marginBottom:20 }}>
         <div style={{ display:"grid", gridTemplateColumns:cols, gap:8, fontSize:11, color:"#556", fontWeight:700, letterSpacing:1, padding:"0 4px 8px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
           <span>#</span><span>PARTICIPANTE</span><span style={{textAlign:"center"}}>PTS</span>
@@ -1205,8 +1224,8 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
         <div style={{ textAlign:"center", fontSize:12, color:"#445", padding:"8px 0" }}>Apostas encerradas para este jogo</div>
       )}
 
-      {/* Others' picks */}
-      {otherPreds.length > 0 && (
+      {/* Others' picks — only visible once the round is locked */}
+      {isLocked && otherPreds.length > 0 && (
         <div style={{ marginTop:10, display:"flex", gap:4, flexWrap:"wrap" }}>
           {otherPreds.map(p => (
             <div key={p.id}
