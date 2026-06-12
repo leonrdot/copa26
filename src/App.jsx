@@ -139,8 +139,8 @@ function genMatches(g) {
 const ALL_MATCHES = GROUPS_RAW.flatMap(genMatches);
 
 // lock time per matchday: 30min before the earliest match of that round
-// Round 1 gets a 10h grace period for late registrations
-const ROUND1_GRACE_MS = 10 * 60 * 60 * 1000;
+// Round 1 (and specials) exceptionally extended until midnight BRT June 12 (03:00 UTC June 13)
+const ROUND1_CUTOFF = Date.UTC(2026, 5, 13, 3, 0, 0); // 00:00 BRT June 13
 const MD_LOCK_TIME = (() => {
   const byMd = {};
   ALL_MATCHES.forEach(m => {
@@ -149,7 +149,7 @@ const MD_LOCK_TIME = (() => {
   const result = {};
   Object.keys(byMd).forEach(md => {
     const base = byMd[md] - 30*60*1000;
-    result[md] = Number(md) === 1 ? base + ROUND1_GRACE_MS : base;
+    result[md] = Number(md) === 1 ? ROUND1_CUTOFF : base;
   });
   return result;
 })();
