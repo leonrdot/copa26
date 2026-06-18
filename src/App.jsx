@@ -773,6 +773,7 @@ function IdentityGate({ participants, onSelect, onAdd, bolaoName, onSwitchBolao 
 //  HEADER
 // ═══════════════════════════════════════════════════════
 function Header({ activePart, participants, activePid, setActivePid, apiStatus, fetchLiveScores, activeBolaoName, onSwitchBolao }) {
+  const mobile = useIsMobile();
   return (
     <header style={{
       background:"linear-gradient(90deg,#0b101f 0%,#10192e 100%)",
@@ -793,7 +794,20 @@ function Header({ activePart, participants, activePid, setActivePid, apiStatus, 
           <button onClick={fetchLiveScores} title="Atualizar placares" style={{ background:"none", border:"none", cursor:"pointer", padding:4, fontSize:16, opacity:0.7 }}>
             {apiStatus==="fetching"?"🔄":apiStatus==="ok"?"🟢":apiStatus==="error"?"🔴":"⚪"}
           </button>
-          {participants.map(p => (
+          {mobile ? (
+            <select value={activePid || ""} onChange={e => setActivePid(e.target.value)} style={{
+              background: activePart ? activePart.color : "rgba(255,255,255,0.06)",
+              border:`1.5px solid ${activePart ? activePart.color : "rgba(255,255,255,0.15)"}`,
+              color:"#fff", borderRadius:20, padding:"4px 10px", cursor:"pointer",
+              fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700,
+              maxWidth:110,
+            }}>
+              {!activePid && <option value="" disabled>Selecionar</option>}
+              {participants.map(p => (
+                <option key={p.id} value={p.id} style={{ color:"#000" }}>{p.name}</option>
+              ))}
+            </select>
+          ) : participants.map(p => (
             <button key={p.id} onClick={() => setActivePid(p.id)} style={{
               background: activePid===p.id ? p.color : "rgba(255,255,255,0.06)",
               border:`1.5px solid ${activePid===p.id ? p.color : "rgba(255,255,255,0.15)"}`,
