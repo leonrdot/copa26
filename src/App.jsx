@@ -998,6 +998,16 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
   const activePart = participants.find(p => p.id === activePid);
   const totalPreds = activePid ? Object.keys(predictions[activePid]||{}).length : 0;
   const pct = Math.round(totalPreds / ALL_MATCHES.length * 100);
+  const [teamFilter, setTeamFilter] = useState(null);
+
+  useEffect(() => { setTeamFilter(null); }, [activeGroup]);
+
+  function isMatchFinal(m) {
+    return !!(storedResults[m.id] || liveScores[m.id]?.status === "final");
+  }
+  // current round = earliest matchday with a pending match; if all done, show the last one first
+  const currentMd = [1,2,3].find(md => groupMatches.some(m => m.md === md && !isMatchFinal(m))) ?? 3;
+  const mdOrder = [currentMd, ...[1,2,3].filter(md => md !== currentMd)];
 
   function setPred(matchId, result, home, away) {
     if (!activePid) return;
@@ -1066,18 +1076,33 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
 
       <div style={{ ...S.card, marginBottom:8, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:S.gold, marginRight:4 }}>GRUPO {activeGroup}</span>
-        {groupTeams.map(code => (
-          <span key={code} style={{ background:"rgba(255,255,255,0.07)", borderRadius:20, padding:"4px 10px", fontSize:14, display:"flex", alignItems:"center", gap:6 }}>
-            <FlagImg code={code} size={24} />
-            <span style={{ fontSize:12 }}>{TEAMS[code].name}</span>
-          </span>
-        ))}
+        {groupTeams.map(code => {
+          const active = teamFilter === code;
+          return (
+            <button key={code} onClick={() => setTeamFilter(active ? null : code)} style={{
+              background: active ? "rgba(232,184,75,0.18)" : "rgba(255,255,255,0.07)",
+              border: active ? `1.5px solid ${S.gold}` : "1px solid transparent",
+              borderRadius:20, padding:"4px 10px", fontSize:14, display:"flex", alignItems:"center", gap:6,
+              cursor:"pointer", color: active ? S.gold : "#e8eaf0", fontFamily:"'Nunito',sans-serif",
+            }}>
+              <FlagImg code={code} size={24} />
+              <span style={{ fontSize:12, fontWeight: active?700:400 }}>{TEAMS[code].name}</span>
+            </button>
+          );
+        })}
+        {teamFilter && (
+          <button onClick={() => setTeamFilter(null)} style={{ background:"none", border:"none", color:"#778", cursor:"pointer", fontSize:11, textDecoration:"underline" }}>
+            limpar filtro
+          </button>
+        )}
       </div>
 
-      {[1,2,3].map(md => (
+      {mdOrder.map(md => (
         <div key={md}>
-          <div style={{ fontSize:11, color:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4 }}>RODADA {md}</div>
-          {groupMatches.filter(m => m.md===md).map(m => {
+          <div style={{ fontSize:11, color: md===currentMd?S.gold:"#556", letterSpacing:2, fontWeight:700, margin:"16px 0 8px", paddingLeft:4, display:"flex", alignItems:"center", gap:6 }}>
+            RODADA {md} {md===currentMd && <span style={{ fontSize:9, background:"rgba(232,184,75,0.15)", padding:"2px 6px", borderRadius:8 }}>ATUAL</span>}
+          </div>
+          {groupMatches.filter(m => m.md===md && (!teamFilter || m.home===teamFilter || m.away===teamFilter)).map(m => {
             const ls = liveScores[m.id];
             const sr = storedResults[m.id];
             const liveScore = ls ? { status:ls.status, homeScore:ls.home, awayScore:ls.away, displayClock:ls.displayClock }
@@ -1169,24 +1194,29 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
       {isLive && <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,#2ecc71,#1abc9c)" }} />}
 
       {/* Status bar */}
-      <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
-        {isLive ? (
-          <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(46,204,113,0.2)", color:"#2ecc71" }}>🔴 AO VIVO {liveScore.displayClock}</span>
-        ) : isFinal ? (
-          <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(255,255,255,0.08)", color:"#556" }}>⚫ ENCERRADO</span>
-        ) : isLocked ? (
-          <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(231,76,60,0.12)", color:"#e74c3c" }}>🔒 APOSTAS ENCERRADAS</span>
-        ) : (
-          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
-            <span style={{ fontSize:10, color:"#667", padding:"3px 8px", borderRadius:10, background:"rgba(255,255,255,0.04)", letterSpacing:0.5 }}>⏱ {fmtTime(match.startTime)}</span>
-            {timeLeft && (
-              <span style={{
-                fontSize:10, fontWeight:700, letterSpacing:0.5, padding:"3px 8px", borderRadius:10,
-                background: urgent ? "rgba(231,76,60,0.14)" : "rgba(243,156,18,0.12)",
-                color: urgent ? "#e74c3c" : "#f39c12",
-              }}>⏳ fecha em {timeLeft}</span>
-            )}
-          </div>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", justifyContent:"center" }}>
+          {isLive ? (
+            <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(46,204,113,0.2)", color:"#2ecc71" }}>🔴 AO VIVO {liveScore.displayClock}</span>
+          ) : isFinal ? (
+            <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(255,255,255,0.08)", color:"#556" }}>⚫ ENCERRADO</span>
+          ) : isLocked ? (
+            <span style={{ fontSize:10, fontWeight:700, letterSpacing:2, padding:"3px 10px", borderRadius:10, background:"rgba(231,76,60,0.12)", color:"#e74c3c" }}>🔒 APOSTAS ENCERRADAS</span>
+          ) : (
+            <>
+              <span style={{ fontSize:10, color:"#667", padding:"3px 8px", borderRadius:10, background:"rgba(255,255,255,0.04)", letterSpacing:0.5 }}>⏱ {fmtTime(match.startTime)}</span>
+              {timeLeft && (
+                <span style={{
+                  fontSize:10, fontWeight:700, letterSpacing:0.5, padding:"3px 8px", borderRadius:10,
+                  background: urgent ? "rgba(231,76,60,0.14)" : "rgba(243,156,18,0.12)",
+                  color: urgent ? "#e74c3c" : "#f39c12",
+                }}>⏳ fecha em {timeLeft}</span>
+              )}
+            </>
+          )}
+        </div>
+        {(isLive || isFinal || isLocked) && (
+          <span style={{ fontSize:9, color:"#556", letterSpacing:0.5 }}>{fmtTime(match.startTime)}</span>
         )}
       </div>
 
