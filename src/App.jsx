@@ -1019,8 +1019,9 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
   function isMatchFinal(m) {
     return !!(storedResults[m.id] || liveScores[m.id]?.status === "final");
   }
-  // current round = earliest matchday with a pending match; if all done, show the last one first
-  const currentMd = [1,2,3].find(md => groupMatches.some(m => m.md === md && !isMatchFinal(m))) ?? 3;
+  // current round = earliest matchday with a pending match across ALL groups (not just the one being viewed),
+  // so round 3 only "rises" once every round 2 match in every group has finished
+  const currentMd = [1,2,3].find(md => ALL_MATCHES.some(m => m.md === md && !isMatchFinal(m))) ?? 3;
   const mdOrder = [currentMd, ...[1,2,3].filter(md => md !== currentMd)];
 
   function setPred(matchId, result, home, away) {
