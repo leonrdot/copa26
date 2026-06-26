@@ -157,6 +157,11 @@ const MD_LOCK_TIME = (() => {
   return result;
 })();
 
+// Knockout bets should open once the whole group stage is decided.
+// The target is 2h30 after the latest group-stage kickoff, enough for regulation
+// time, stoppage and ESPN/classification sync.
+const KNOCKOUT_BET_RELEASE_TIME = Math.max(...ALL_MATCHES.map(m => m.startTime)) + 150*60*1000;
+
 // English / common aliases → our FIFA team code, for matching ESPN API results
 const TEAM_ALIASES = {
   MEX:["mexico"], RSA:["south africa"], KOR:["south korea","korea republic","korea"],
@@ -590,7 +595,7 @@ export default function BolaoApp() {
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
         {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} />}
         {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} storedResults={storedResults} savePredictionsChild={savePredictionsChild} now={now} />}
-        {tab==="chaveamento"   && <BracketTab bracket={effectiveKnockoutMatches} apiStatus={apiStatus} />}
+        {tab==="chaveamento"   && <BracketTab bracket={effectiveKnockoutMatches} apiStatus={apiStatus} now={now} />}
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicksChild={saveExtraPicksChild} now={now} />}
         {tab==="participantes" && <ParticipantesTab participants={parts} saveParticipants={saveParticipants} activePid={activePid} setActivePid={setActivePid} />}
       </main>
@@ -1402,10 +1407,15 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
 // ═══════════════════════════════════════════════════════
 //  BRACKET TAB  (tab-based, no horizontal scroll)
 // ═══════════════════════════════════════════════════════
-function BracketTab({ bracket, apiStatus }) {
+function BracketTab({ bracket, apiStatus, now }) {
   const [activeRound, setActiveRound] = useState("r32");
 
   const round = BRACKET_ROUNDS.find(r => r.id === activeRound);
+  const r32Matches = bracket?.r32 || [];
+  const definedR32 = r32Matches.filter(m => m.home && m.away).length;
+  const knockoutReleased = now >= KNOCKOUT_BET_RELEASE_TIME || definedR32 === 16;
+  const releaseCountdown = fmtCountdown(KNOCKOUT_BET_RELEASE_TIME - now);
+  const releaseDate = fmtTime(KNOCKOUT_BET_RELEASE_TIME);
 
   return (
     <div>
@@ -1413,15 +1423,16 @@ function BracketTab({ bracket, apiStatus }) {
 
       <div style={{
         ...S.card, marginBottom:16, display:"flex", alignItems:"center", gap:10,
-        background:"rgba(46,204,113,0.06)", border:"1px solid rgba(46,204,113,0.2)",
+        background: knockoutReleased ? "rgba(46,204,113,0.06)" : "rgba(232,184,75,0.06)",
+        border: knockoutReleased ? "1px solid rgba(46,204,113,0.2)" : "1px solid rgba(232,184,75,0.22)",
       }}>
-        <span style={{ fontSize:20 }}>{apiStatus === "error" ? "⚠️" : "🔄"}</span>
+        <span style={{ fontSize:20 }}>{knockoutReleased ? "🔓" : "⏳"}</span>
         <div>
-          <div style={{ fontSize:13, fontWeight:700, color:apiStatus === "error" ? "#f39c12" : "#2ecc71" }}>
-            Preenchimento automático
+          <div style={{ fontSize:13, fontWeight:700, color:knockoutReleased ? "#2ecc71" : S.gold }}>
+            {knockoutReleased ? "Apostas do mata-mata liberadas" : `Apostas do mata-mata liberam em ${releaseCountdown}`}
           </div>
           <div style={{ fontSize:11, color:"#778", marginTop:2 }}>
-            Times, horários, placares e classificados são sincronizados pela ESPN.
+            Previsão: {releaseDate}. O chaveamento aparece conforme os classificados forem definidos.
             {apiStatus === "error" && " Exibindo o último chaveamento salvo."}
           </div>
         </div>
