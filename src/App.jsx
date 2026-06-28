@@ -295,6 +295,14 @@ function deriveResult(h, a) {
   return hi > ai ? "H" : hi < ai ? "A" : "D";
 }
 
+function bracketMatchKey(roundId, idx, match) {
+  return match?.id || `${roundId}-${idx + 1}`;
+}
+
+function getTeamName(code, fallback="A definir") {
+  return TEAMS[code]?.name || fallback || "A definir";
+}
+
 function Avatar({ participant, size=32 }) {
   return (
     <div style={{
@@ -535,6 +543,23 @@ export default function BolaoApp() {
       }
     });
 
+    BRACKET_ROUNDS.forEach(round => {
+      (effectiveKnockoutMatches?.[round.id] || []).forEach((match, idx) => {
+        const pred = preds[bracketMatchKey(round.id, idx, match)];
+        if (!pred || match.status !== "final") return;
+
+        const actual = match.winner === "home" ? "H" : match.winner === "away" ? "A" : null;
+        if (!actual) return;
+
+        if (pred.result === actual) {
+          pts += POINTS_CONFIG.result; correct++;
+          if (String(pred.home) === String(match.homeScore) && String(pred.away) === String(match.awayScore)) {
+            pts += POINTS_CONFIG.exact; exact++;
+          }
+        }
+      });
+    });
+
     const picks = extraPicks[pid] || {};
     if (tournamentPodium.champion && picks.champion === tournamentPodium.champion) {
       pts += POINTS_CONFIG.champion;
@@ -595,7 +620,7 @@ export default function BolaoApp() {
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
         {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} />}
         {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} storedResults={storedResults} savePredictionsChild={savePredictionsChild} now={now} />}
-        {tab==="chaveamento"   && <BracketTab bracket={effectiveKnockoutMatches} apiStatus={apiStatus} now={now} />}
+        {tab==="chaveamento"   && <BracketTab bracket={effectiveKnockoutMatches} apiStatus={apiStatus} now={now} activePid={activePid} participants={parts} predictions={predictions} savePredictionsChild={savePredictionsChild} />}
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicksChild={saveExtraPicksChild} now={now} />}
         {tab==="participantes" && <ParticipantesTab participants={parts} saveParticipants={saveParticipants} activePid={activePid} setActivePid={setActivePid} />}
       </main>
@@ -1047,7 +1072,7 @@ function GruposTab({ activeGroup, setActiveGroup, activePid, participants, predi
   const groupMatches = ALL_MATCHES.filter(m => m.group === activeGroup);
   const groupTeams = GROUPS_RAW.find(g => g.id === activeGroup)?.teams || [];
   const activePart = participants.find(p => p.id === activePid);
-  const totalPreds = activePid ? Object.keys(predictions[activePid]||{}).length : 0;
+  const totalPreds = activePid ? ALL_MATCHES.filter(m => predictions[activePid]?.[m.id]).length : 0;
   const pct = Math.round(totalPreds / ALL_MATCHES.length * 100);
   const [teamFilter, setTeamFilter] = useState(null);
 
@@ -1405,10 +1430,60 @@ function MatchCard({ match, pred, liveScore, onPred, disabled, participants, pre
 }
 
 // ═══════════════════════════════════════════════════════
-//  BRACKET TAB  (tab-based, no horizontal scroll)
+//  BRACKET TAB  (bets + desktop bracket path)
 // ═══════════════════════════════════════════════════════
-function BracketTab({ bracket, apiStatus, now }) {
+function BracketPathView({ bracket }) {
+  const pathRounds = BRACKET_ROUNDS.filter(r => ["r32","r16","qf","sf","final"].includes(r.id));
+
+  return (
+    <div style={{ ...S.card, marginBottom:16, padding:12 }}>
+      <div style={{ fontFamily:"'Bebas Neue',sans-serif", color:S.gold, fontSize:18, letterSpacing:1, marginBottom:10 }}>
+        Caminho até a final
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5, minmax(150px, 1fr))", gap:10, alignItems:"start" }}>
+        {pathRounds.map(round => (
+          <div key={round.id}>
+            <div style={{ fontSize:10, color:"#667", letterSpacing:1.5, fontWeight:700, marginBottom:8, textAlign:"center" }}>
+              {round.label.toUpperCase()}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {Array.from({ length: round.slots }, (_, idx) => {
+                const match = getBracketMatch(bracket, round.id, idx);
+                return <CompactBracketMatch key={`${round.id}-${idx}`} match={match} idx={idx} />;
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CompactBracketMatch({ match, idx }) {
+  const homeName = getTeamName(match?.home, match?.homeName);
+  const awayName = getTeamName(match?.away, match?.awayName);
+  const hasScore = match?.homeScore !== "" && match?.homeScore != null;
+
+  return (
+    <div style={{
+      border: match?.winner ? "1px solid rgba(232,184,75,0.26)" : "1px solid rgba(255,255,255,0.08)",
+      background: match?.winner ? "rgba(232,184,75,0.05)" : "rgba(255,255,255,0.035)",
+      borderRadius:9, padding:8, minHeight:52,
+    }}>
+      <div style={{ fontSize:8, color:"#445", letterSpacing:1, marginBottom:4 }}>J{idx + 1}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:6, alignItems:"center", fontSize:10 }}>
+        <span style={{ color:match?.winner==="home" ? S.gold : "#99a", fontWeight:match?.winner==="home" ? 700 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{homeName}</span>
+        <span style={{ color:hasScore ? "#ccd" : "#334", fontFamily:"'Bebas Neue',sans-serif", fontSize:14 }}>{hasScore ? match.homeScore : ""}</span>
+        <span style={{ color:match?.winner==="away" ? S.gold : "#99a", fontWeight:match?.winner==="away" ? 700 : 400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{awayName}</span>
+        <span style={{ color:hasScore ? "#ccd" : "#334", fontFamily:"'Bebas Neue',sans-serif", fontSize:14 }}>{hasScore ? match.awayScore : ""}</span>
+      </div>
+    </div>
+  );
+}
+
+function BracketTab({ bracket, apiStatus, now, activePid, participants, predictions, savePredictionsChild }) {
   const [activeRound, setActiveRound] = useState("r32");
+  const mobile = useIsMobile();
 
   const round = BRACKET_ROUNDS.find(r => r.id === activeRound);
   const r32Matches = bracket?.r32 || [];
@@ -1416,6 +1491,23 @@ function BracketTab({ bracket, apiStatus, now }) {
   const knockoutReleased = now >= KNOCKOUT_BET_RELEASE_TIME || definedR32 === 16;
   const releaseCountdown = fmtCountdown(KNOCKOUT_BET_RELEASE_TIME - now);
   const releaseDate = fmtTime(KNOCKOUT_BET_RELEASE_TIME);
+  const activePart = participants.find(p => p.id === activePid);
+  const totalKnockoutPreds = activePid
+    ? BRACKET_ROUNDS.reduce((sum, r) => sum + (bracket?.[r.id] || []).filter((m, idx) => predictions[activePid]?.[bracketMatchKey(r.id, idx, m)]).length, 0)
+    : 0;
+  const totalKnownKnockoutMatches = BRACKET_ROUNDS.reduce((sum, r) => sum + (bracket?.[r.id] || []).filter(m => m.home && m.away).length, 0);
+
+  function setPred(matchKey, result, home, away) {
+    if (!activePid) return;
+    const current = { ...(predictions[activePid]||{}) };
+    const nextPrediction = buildPrediction(result, home, away);
+    if (Object.keys(nextPrediction).length === 0) {
+      delete current[matchKey];
+    } else {
+      current[matchKey] = nextPrediction;
+    }
+    savePredictionsChild(activePid, Object.keys(current).length ? current : null);
+  }
 
   return (
     <div>
@@ -1437,6 +1529,27 @@ function BracketTab({ bracket, apiStatus, now }) {
           </div>
         </div>
       </div>
+
+      {!activePid && (
+        <div style={{ ...S.card, background:"rgba(232,184,75,0.08)", border:`1px solid rgba(232,184,75,0.3)`, marginBottom:16, textAlign:"center", padding:20 }}>
+          <div style={{ fontSize:24, marginBottom:8 }}>👆</div>
+          <div style={{ color:S.gold, fontWeight:700 }}>Selecione um participante no topo para apostar no mata-mata</div>
+        </div>
+      )}
+
+      {activePart && (
+        <div style={{ ...S.card, display:"flex", alignItems:"center", gap:12, marginBottom:16, background:`linear-gradient(90deg,${activePart.color}18,transparent)`, border:`1px solid ${activePart.color}44` }}>
+          <Avatar participant={activePart} size={38} />
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700, fontSize:15 }}>Palpitando como: <span style={{ color:activePart.color }}>{activePart.name}</span></div>
+            <div style={{ fontSize:11, color:"#667", marginTop:2 }}>
+              {totalKnockoutPreds}/{totalKnownKnockoutMatches || 32} apostas do mata-mata preenchidas
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!mobile && <BracketPathView bracket={bracket} />}
 
       {/* Round tabs */}
       <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:16 }}>
@@ -1469,78 +1582,222 @@ function BracketTab({ bracket, apiStatus, now }) {
       </div>
 
       <div style={{ fontSize:11, color:"#556", marginBottom:12 }}>
-        {round.label} — {round.slots} {round.slots===1?"jogo":"jogos"} · atualização automática
+        {round.label} — {round.slots} {round.slots===1?"jogo":"jogos"} · apostas por placar e classificado
       </div>
 
       {Array.from({length: round.slots}, (_, idx) => {
         const match = getBracketMatch(bracket, activeRound, idx);
-        const homeTeam = match?.home ? TEAMS[match.home] : null;
-        const awayTeam = match?.away ? TEAMS[match.away] : null;
-        const homeName = homeTeam?.name || match?.homeName || "A definir";
-        const awayName = awayTeam?.name || match?.awayName || "A definir";
-        const hasScore = match?.homeScore !== "" && match?.homeScore != null;
-        const hasShootout = match?.homeShootout !== "" && match?.awayShootout !== ""
-          && (match.homeShootout > 0 || match.awayShootout > 0);
-        const isLive = match?.status === "live";
-        const isFinal = match?.status === "final";
+        const matchKey = bracketMatchKey(activeRound, idx, match);
         return (
-          <div key={match?.id || idx} style={{
-            ...S.card,
-            border: match?.winner ? `1px solid rgba(232,184,75,0.3)` : isLive ? "1px solid rgba(46,204,113,0.35)" : "1px solid rgba(255,255,255,0.08)",
-            background: match?.winner ? "rgba(232,184,75,0.04)" : isLive ? "rgba(46,204,113,0.05)" : "rgba(255,255,255,0.04)",
-            transition:"all 0.15s",
-          }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-              <span style={{ fontSize:11, color:"#445", letterSpacing:1 }}>JOGO {idx+1}</span>
-              {match && (
-                <span style={{
-                  marginLeft:"auto", fontSize:9, fontWeight:700, letterSpacing:1,
-                  color:isLive ? "#2ecc71" : isFinal ? "#667" : "#778",
-                }}>
-                  {isLive ? `🔴 AO VIVO ${match.displayClock}` : isFinal ? "ENCERRADO" : fmtTime(match.startTime)}
-                </span>
-              )}
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:10 }}>
-              {/* Home */}
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                {match?.home
-                  ? <FlagImg code={match.home} size={32} />
-                  : <div style={{ width:32, height:22, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
-                <span style={{ fontSize:13, fontWeight: match?.winner==="home" ? 700 : 400, color: match?.winner==="home" ? S.gold : "#aab" }}>
-                  {homeName}
-                </span>
-              </div>
-              {/* Score */}
-              <div style={{ textAlign:"center", minWidth:64 }}>
-                {hasScore
-                  ? <div>
-                      <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color: match?.winner ? S.gold : S.silver, letterSpacing:2 }}>{match.homeScore} – {match.awayScore}</span>
-                      {hasShootout && <div style={{ fontSize:9, color:"#778" }}>pên. {match.homeShootout}–{match.awayShootout}</div>}
-                    </div>
-                  : <span style={{ fontSize:12, color:"#334", letterSpacing:2 }}>VS</span>}
-              </div>
-              {/* Away */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
-                <span style={{ fontSize:13, fontWeight: match?.winner==="away" ? 700 : 400, color: match?.winner==="away" ? S.gold : "#aab", textAlign:"right" }}>
-                  {awayName}
-                </span>
-                {match?.away
-                  ? <FlagImg code={match.away} size={32} />
-                  : <div style={{ width:32, height:22, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
-              </div>
-            </div>
-            {match?.winner && (
-              <div style={{ marginTop:8, fontSize:11, color:S.gold, textAlign:"center", letterSpacing:0.5 }}>
-                ✓ Classificado: {match.winner==="home" ? homeName : awayName}
-              </div>
-            )}
-            {match?.venue && (
-              <div style={{ marginTop:7, fontSize:9, color:"#445", textAlign:"center" }}>{match.venue}</div>
-            )}
-          </div>
+          <KnockoutMatchCard
+            key={matchKey}
+            roundId={activeRound}
+            idx={idx}
+            match={match}
+            matchKey={matchKey}
+            pred={activePid ? predictions[activePid]?.[matchKey] : null}
+            onPred={(r,h,a) => setPred(matchKey, r, h, a)}
+            disabled={!activePid}
+            participants={participants}
+            predictions={predictions}
+            now={now}
+            betsReleased={knockoutReleased}
+          />
         );
       })}
+    </div>
+  );
+}
+
+function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabled, participants, predictions, now, betsReleased }) {
+  const mobile = useIsMobile();
+  const homeName = getTeamName(match?.home, match?.homeName);
+  const awayName = getTeamName(match?.away, match?.awayName);
+  const hasTeams = !!(match?.home && match?.away);
+  const hasStartTime = Number.isFinite(match?.startTime);
+  const lockTime = hasStartTime ? match.startTime - 30*60*1000 : Infinity;
+  const isLive = match?.status === "live";
+  const isFinal = match?.status === "final";
+  const isLocked = hasStartTime && now >= lockTime;
+  const canEdit = !disabled && betsReleased && hasTeams && !isLive && !isFinal && !isLocked;
+  const timeLeft = hasStartTime ? fmtCountdown(lockTime - now) : null;
+  const hasScore = match?.homeScore !== "" && match?.homeScore != null;
+  const hasShootout = match?.homeShootout !== "" && match?.awayShootout !== ""
+    && (match.homeShootout > 0 || match.awayShootout > 0);
+  const [homeInput, setHomeInput] = useState(pred?.home ?? "");
+  const [awayInput, setAwayInput] = useState(pred?.away ?? "");
+
+  useEffect(() => {
+    setHomeInput(pred?.home ?? "");
+    setAwayInput(pred?.away ?? "");
+  }, [pred, matchKey]);
+
+  const scoreDerived = deriveResult(homeInput, awayInput);
+  const actualResult = match?.winner === "home" ? "H" : match?.winner === "away" ? "A" : null;
+  const otherPreds = participants
+    .filter(p => predictions[p.id]?.[matchKey])
+    .map(p => ({ ...p, pred: predictions[p.id][matchKey] }));
+
+  function handleScore(who, val) {
+    if (!canEdit) return;
+    const v = val === "" ? "" : Math.max(0, typeof val === "number" ? val : parseInt(val)||0);
+    const newHome = who === "home" ? v : homeInput;
+    const newAway = who === "away" ? v : awayInput;
+    if (who === "home") setHomeInput(v); else setAwayInput(v);
+    const derived = deriveResult(newHome, newAway);
+    const nextResult = derived && derived !== "D" ? derived : pred?.result;
+    onPred(
+      nextResult,
+      newHome !== "" ? parseInt(newHome) : undefined,
+      newAway !== "" ? parseInt(newAway) : undefined,
+    );
+  }
+
+  function handleWinner(result) {
+    if (!canEdit) return;
+    onPred(result, homeInput !== "" ? parseInt(homeInput) : undefined, awayInput !== "" ? parseInt(awayInput) : undefined);
+  }
+
+  function handleReset() {
+    if (!canEdit) return;
+    setHomeInput(""); setAwayInput("");
+    onPred(undefined, undefined, undefined);
+  }
+
+  const winnerOpts = [
+    { code:"H", flag:match?.home, label:homeName, color:"#3498db" },
+    { code:"A", flag:match?.away, label:awayName, color:"#e74c3c" },
+  ];
+
+  return (
+    <div style={{
+      ...S.card,
+      border: pred ? "1px solid rgba(255,255,255,0.14)" : match?.winner ? "1px solid rgba(232,184,75,0.3)" : isLive ? "1px solid rgba(46,204,113,0.35)" : "1px solid rgba(255,255,255,0.08)",
+      background: match?.winner ? "rgba(232,184,75,0.04)" : isLive ? "rgba(46,204,113,0.05)" : "rgba(255,255,255,0.04)",
+      transition:"all 0.15s",
+    }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+        <span style={{ fontSize:11, color:"#445", letterSpacing:1 }}>JOGO {idx+1}</span>
+        {match && (
+          <span style={{
+            marginLeft:"auto", fontSize:9, fontWeight:700, letterSpacing:1,
+            color:isLive ? "#2ecc71" : isFinal ? "#667" : "#778",
+          }}>
+            {isLive ? `🔴 AO VIVO ${match.displayClock}` : isFinal ? "ENCERRADO" : hasStartTime ? fmtTime(match.startTime) : "A definir"}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:10 }}>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+          {match?.home ? <FlagImg code={match.home} size={mobile ? 34 : 40} /> : <div style={{ width:40, height:27, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
+          <span style={{ fontSize:mobile?11:13, fontWeight: match?.winner==="home" ? 700 : 500, color: match?.winner==="home" ? S.gold : "#aab", textAlign:"center", lineHeight:1.2 }}>
+            {homeName}
+          </span>
+        </div>
+
+        <div style={{ textAlign:"center", minWidth:76 }}>
+          {(isLive || isFinal || hasScore) ? (
+            <div>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color: match?.winner ? S.gold : S.silver, letterSpacing:2 }}>
+                {hasScore ? `${match.homeScore} – ${match.awayScore}` : "VS"}
+              </span>
+              {hasShootout && <div style={{ fontSize:9, color:"#778" }}>pên. {match.homeShootout}–{match.awayShootout}</div>}
+            </div>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", gap:mobile?5:8 }}>
+              <ScoreStepper value={homeInput} onChange={v => handleScore("home", v)} disabled={!canEdit} />
+              <span style={{ color:"#334", fontSize:18, fontWeight:700 }}>×</span>
+              <ScoreStepper value={awayInput} onChange={v => handleScore("away", v)} disabled={!canEdit} />
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+          {match?.away ? <FlagImg code={match.away} size={mobile ? 34 : 40} /> : <div style={{ width:40, height:27, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
+          <span style={{ fontSize:mobile?11:13, fontWeight: match?.winner==="away" ? 700 : 500, color: match?.winner==="away" ? S.gold : "#aab", textAlign:"center", lineHeight:1.2 }}>
+            {awayName}
+          </span>
+        </div>
+      </div>
+
+      {canEdit && scoreDerived === "D" && (
+        <div style={{ marginTop:8, fontSize:10, color:"#f39c12", textAlign:"center" }}>
+          Placar empatado: escolha abaixo quem passa nos pênaltis/prorrogação.
+        </div>
+      )}
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:12 }}>
+        {winnerOpts.map(opt => {
+          const sel = pred?.result === opt.code;
+          const blocked = !!scoreDerived && scoreDerived !== "D" && scoreDerived !== opt.code;
+          const correct = actualResult === opt.code;
+          return (
+            <button key={opt.code} onClick={() => handleWinner(opt.code)} disabled={!canEdit || blocked} style={{
+              background: sel ? opt.color : correct ? `${opt.color}22` : "rgba(255,255,255,0.05)",
+              border:`1.5px solid ${sel || correct ? opt.color : blocked ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)"}`,
+              borderRadius:8, padding:"8px 6px", cursor:(canEdit && !blocked) ? "pointer" : "default",
+              color: sel ? "#fff" : correct ? opt.color : blocked ? "#333" : "#778",
+              fontSize:11, fontWeight:700, opacity:blocked ? 0.35 : 1,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:5,
+            }}>
+              {opt.flag && <FlagImg code={opt.flag} size={16} />}
+              Classifica {opt.label}
+              {sel && actualResult && (correct ? <span>✓</span> : <span>✗</span>)}
+            </button>
+          );
+        })}
+      </div>
+
+      {pred?.result && (
+        <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, marginTop:10 }}>
+          <span style={{ background:"rgba(255,255,255,0.06)", borderRadius:8, padding:"7px 12px", fontSize:12, color:"#778" }}>
+            Palpite: classifica {pred.result==="H" ? homeName : awayName}
+            {pred.home !== undefined && ` — ${pred.home}×${pred.away}`}
+          </span>
+          {canEdit && (
+            <button onClick={handleReset} title="Apagar aposta" style={{
+              background:"rgba(255,80,80,0.12)", border:"1px solid rgba(255,80,80,0.25)",
+              borderRadius:6, padding:"5px 8px", cursor:"pointer", color:"#e07070",
+              fontSize:11, fontWeight:700, lineHeight:1,
+            }}>✕</button>
+          )}
+        </div>
+      )}
+
+      {!betsReleased && (
+        <div style={{ marginTop:10, fontSize:11, color:"#556", textAlign:"center" }}>Apostas abrem quando a fase de grupos terminar.</div>
+      )}
+      {betsReleased && !hasTeams && (
+        <div style={{ marginTop:10, fontSize:11, color:"#556", textAlign:"center" }}>Aguardando definição dos classificados para liberar este jogo.</div>
+      )}
+      {betsReleased && hasTeams && isLocked && !isFinal && !isLive && !pred?.result && (
+        <div style={{ marginTop:10, fontSize:11, color:"#556", textAlign:"center" }}>Apostas encerradas para este jogo.</div>
+      )}
+      {canEdit && timeLeft && (
+        <div style={{ marginTop:8, fontSize:10, color:"#667", textAlign:"center" }}>⏳ fecha em {timeLeft}</div>
+      )}
+      {match?.winner && (
+        <div style={{ marginTop:8, fontSize:11, color:S.gold, textAlign:"center", letterSpacing:0.5 }}>
+          ✓ Classificado: {match.winner==="home" ? homeName : awayName}
+        </div>
+      )}
+      {match?.venue && (
+        <div style={{ marginTop:7, fontSize:9, color:"#445", textAlign:"center" }}>{match.venue}</div>
+      )}
+      {(isLocked || isLive || isFinal) && otherPreds.length > 0 && (
+        <div style={{ marginTop:10, display:"flex", gap:4, flexWrap:"wrap", justifyContent:"center" }}>
+          {otherPreds.map(p => (
+            <div key={p.id} style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.05)", borderRadius:20, padding:"3px 8px", fontSize:11, borderLeft:`3px solid ${p.color}` }}>
+              <span style={{ fontWeight:700, color:p.color, fontSize:10 }}>{initials(p.name)}</span>
+              <span style={{ color:"#778" }}>
+                {p.pred.result==="H" ? homeName : awayName}
+                {p.pred.home !== undefined && ` ${p.pred.home}–${p.pred.away}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
