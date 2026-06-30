@@ -1657,22 +1657,6 @@ function BracketTab({ bracket, apiStatus, now, activePid, participants, predicti
     <div>
       <SectionTitle icon="🏆" title="Chaveamento" />
 
-      <div style={{
-        ...S.card, marginBottom:16, display:"flex", alignItems:"center", gap:10,
-        background: knockoutReleased ? "rgba(46,204,113,0.06)" : "rgba(232,184,75,0.06)",
-        border: knockoutReleased ? "1px solid rgba(46,204,113,0.2)" : "1px solid rgba(232,184,75,0.22)",
-      }}>
-        <span style={{ fontSize:20 }}>{knockoutReleased ? "🔓" : "⏳"}</span>
-        <div>
-          <div style={{ fontSize:13, fontWeight:700, color:knockoutReleased ? "#2ecc71" : S.gold }}>
-            {knockoutReleased ? "Apostas do mata-mata liberadas" : `Apostas do mata-mata liberam em ${releaseCountdown}`}
-          </div>
-          <div style={{ fontSize:11, color:"#778", marginTop:2 }}>
-            Previsão: {releaseDate}. O chaveamento aparece conforme os classificados forem definidos.
-            {apiStatus === "error" && " Exibindo o último chaveamento salvo."}
-          </div>
-        </div>
-      </div>
 
       {!activePid && (
         <div style={{ ...S.card, background:"rgba(232,184,75,0.08)", border:`1px solid rgba(232,184,75,0.3)`, marginBottom:16, textAlign:"center", padding:20 }}>
@@ -1692,8 +1676,6 @@ function BracketTab({ bracket, apiStatus, now, activePid, participants, predicti
           </div>
         </div>
       )}
-
-      {!mobile && <BracketPathView bracket={bracket} />}
 
       {/* Round tabs */}
       <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:16 }}>
