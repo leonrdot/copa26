@@ -3,6 +3,7 @@ import { db } from "./firebase";
 import { ref, onValue, set } from "firebase/database";
 import {
   BRACKET_ROUNDS,
+  KO_PHASE_BONUS,
   buildPrediction,
   getBracketMatch,
   getTournamentPodium,
@@ -521,6 +522,33 @@ export default function BolaoApp() {
 
   const tournamentPodium = getTournamentPodium(effectiveKnockoutMatches);
 
+  function calcKoMatchPts(pred, match, phaseBonus) {
+    const actualResult = match.winner === "home" ? "H" : "A";
+    const actualPens   = match.homeShootout !== "" && match.awayShootout !== ""
+      && (Number(match.homeShootout) > 0 || Number(match.awayShootout) > 0);
+    // predRegTime: result implied by the predicted score (may differ from pred.result for tied scores + winner pick)
+    const predRegTime  = (pred.home !== undefined && pred.away !== undefined)
+      ? deriveResult(pred.home, pred.away)
+      : pred.result;
+    const predAdvance  = pred.result; // always H or A — who the predictor thinks advances
+    const gotAdvance   = predAdvance === actualResult;
+    const gotRegTime   = predRegTime === (actualPens ? "D" : actualResult);
+    const gotExact     = gotRegTime
+      && String(pred.home) === String(match.homeScore)
+      && String(pred.away) === String(match.awayScore);
+    if (actualPens) {
+      if (gotExact && gotAdvance)    return 5 + phaseBonus;
+      if (gotRegTime && gotAdvance)  return 3;
+      if (gotAdvance)                return 2;
+      if (predRegTime === "D")       return 1; // predicted draw but wrong team
+      return 0;
+    } else {
+      if (gotExact)                  return 5 + phaseBonus;
+      if (gotAdvance)                return 3;
+      return 0;
+    }
+  }
+
   function calcScore(pid) {
     let pts = 0, correct = 0, exact = 0, specials = 0;
     const preds = predictions[pid] || {};
@@ -544,19 +572,12 @@ export default function BolaoApp() {
     });
 
     BRACKET_ROUNDS.forEach(round => {
+      const phaseBonus = KO_PHASE_BONUS[round.id] ?? 0;
       (effectiveKnockoutMatches?.[round.id] || []).forEach((match, idx) => {
         const pred = preds[bracketMatchKey(round.id, idx, match)];
-        if (!pred || match.status !== "final") return;
-
-        const actual = match.winner === "home" ? "H" : match.winner === "away" ? "A" : null;
-        if (!actual) return;
-
-        if (pred.result === actual) {
-          pts += POINTS_CONFIG.result; correct++;
-          if (String(pred.home) === String(match.homeScore) && String(pred.away) === String(match.awayScore)) {
-            pts += POINTS_CONFIG.exact; exact++;
-          }
-        }
+        if (!pred || match.status !== "final" || !match.winner) return;
+        const p = calcKoMatchPts(pred, match, phaseBonus);
+        if (p > 0) { pts += p; correct++; if (p >= 5) exact++; }
       });
     });
 
@@ -573,9 +594,74 @@ export default function BolaoApp() {
     return { pts, correct, exact, specials };
   }
 
-  const parts      = Array.isArray(participants) ? participants : [];
+  const parts = Array.isArray(participants) ? participants : [];
+
+  // ── Round delta: last completed phase points + position change ──
+  function groupMdPts(pid, md) {
+    let pts = 0;
+    const preds = predictions[pid] || {};
+    ALL_MATCHES.filter(m => m.md === md).forEach(m => {
+      const pred = preds[m.id];
+      if (!pred) return;
+      const result = storedResults[m.id] || (liveScores[m.id]?.status === "final" ? liveScores[m.id] : null);
+      if (!result) return;
+      const actual = result.home > result.away ? "H" : result.home < result.away ? "A" : "D";
+      if (pred.result === actual) {
+        pts += POINTS_CONFIG.result;
+        if (String(pred.home) === String(result.home) && String(pred.away) === String(result.away))
+          pts += POINTS_CONFIG.exact;
+      }
+    });
+    return pts;
+  }
+
+  function koRoundPts(pid, roundId) {
+    let pts = 0;
+    const preds = predictions[pid] || {};
+    const phaseBonus = KO_PHASE_BONUS[roundId] ?? 0;
+    (effectiveKnockoutMatches?.[roundId] || []).forEach((match, idx) => {
+      if (match.status !== "final" || !match.winner) return;
+      const pred = preds[bracketMatchKey(roundId, idx, match)];
+      if (!pred) return;
+      const p = calcKoMatchPts(pred, match, phaseBonus);
+      if (p > 0) pts += p;
+    });
+    return pts;
+  }
+
+  function ptsInPhase(pid, phase) {
+    return phase.startsWith("md") ? groupMdPts(pid, Number(phase[2])) : koRoundPts(pid, phase);
+  }
+
+  const completedPhases = (() => {
+    const done = [];
+    for (const md of [1,2,3]) {
+      if (ALL_MATCHES.filter(m=>m.md===md).every(m=>storedResults[m.id])) done.push(`md${md}`);
+    }
+    for (const round of BRACKET_ROUNDS) {
+      const ms = effectiveKnockoutMatches?.[round.id] || [];
+      if (ms.length > 0 && ms.every(m=>m.winner)) done.push(round.id);
+    }
+    return done;
+  })();
+
+  const deltaPhase = completedPhases.length >= 1 ? completedPhases[completedPhases.length-1] : null;
+  const deltaLabel = deltaPhase
+    ? (deltaPhase.startsWith("md") ? `Rodada ${deltaPhase[2]}` : (BRACKET_ROUNDS.find(r=>r.id===deltaPhase)?.label||deltaPhase))
+    : null;
+  const phasePts = {};
+  const phaseRankBefore = {};
+  if (deltaPhase) {
+    parts.forEach(p => { phasePts[p.id] = ptsInPhase(p.id, deltaPhase); });
+    const sorted = [...parts].sort((a,b) => {
+      const diff = (calcScore(b.id).pts - (phasePts[b.id]||0)) - (calcScore(a.id).pts - (phasePts[a.id]||0));
+      return diff !== 0 ? diff : (calcScore(b.id).correct - calcScore(a.id).correct);
+    });
+    sorted.forEach((p,i) => { phaseRankBefore[p.id] = i+1; });
+  }
+
   const ranking = parts
-    .map(p => ({ ...p, ...calcScore(p.id), preds: Object.keys(predictions[p.id]||{}).length }))
+    .map(p => ({ ...p, ...calcScore(p.id), preds: Object.keys(predictions[p.id]||{}).length, phasePts: phasePts[p.id]??null, prevRank: phaseRankBefore[p.id]??null }))
     .sort((a,b) => b.pts - a.pts || b.correct - a.correct || b.preds - a.preds);
 
   const activePart = parts.find(p => p.id === activePid);
@@ -618,7 +704,7 @@ export default function BolaoApp() {
         activeBolaoName={activeBolaoName} onSwitchBolao={() => setActiveBolaoId(null)} />
       <TabBar tab={tab} setTab={setTab} />
       <main style={{ maxWidth:820, margin:"0 auto", padding:"20px 16px 80px" }}>
-        {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} />}
+        {tab==="ranking"       && <RankingTab ranking={ranking} participants={parts} predictions={predictions} extraPicks={extraPicks} deltaLabel={deltaLabel} />}
         {tab==="grupos"        && <GruposTab activeGroup={activeGroup} setActiveGroup={setActiveGroup} activePid={activePid} participants={parts} predictions={predictions} liveScores={liveScores} storedResults={storedResults} savePredictionsChild={savePredictionsChild} now={now} />}
         {tab==="chaveamento"   && <BracketTab bracket={effectiveKnockoutMatches} apiStatus={apiStatus} now={now} activePid={activePid} participants={parts} predictions={predictions} savePredictionsChild={savePredictionsChild} />}
         {tab==="campeao"       && <CampeaoTab activePid={activePid} participants={parts} extraPicks={extraPicks} saveExtraPicksChild={saveExtraPicksChild} now={now} />}
@@ -981,10 +1067,11 @@ function buildCSV(participants, predictions, extraPicks, ranking) {
 // ═══════════════════════════════════════════════════════
 //  RANKING TAB
 // ═══════════════════════════════════════════════════════
-function RankingTab({ ranking, participants, predictions, extraPicks }) {
+function RankingTab({ ranking, participants, predictions, extraPicks, deltaLabel }) {
   const medals = ["🥇","🥈","🥉"];
   const mobile = useIsMobile();
-  const cols = mobile ? "32px 1fr 64px" : "40px 1fr 80px 72px 72px";
+  const cols = mobile ? "36px 1fr 64px" : "40px 1fr 80px 72px 72px";
+  const hasDelta = !!(deltaLabel && ranking.some(p => p.phasePts != null));
   if (participants.length === 0) {
     return <EmptyState icon="👥" title="Nenhum participante ainda" subtitle='Vá em "Participantes" para adicionar os jogadores do bolão.' />;
   }
@@ -998,24 +1085,43 @@ function RankingTab({ ranking, participants, predictions, extraPicks }) {
           <span style={{ fontSize:13, color:"#aab" }}>Pontos aparecem assim que os resultados forem confirmados. A classificação já está ordenada por quantidade de palpites.</span>
         </div>
       )}
+      {hasDelta && (
+        <div style={{ fontSize:11, color:"#556", letterSpacing:1, marginBottom:8, paddingLeft:2 }}>
+          Última fase: <span style={{ color:S.gold, fontWeight:700 }}>{deltaLabel}</span>
+        </div>
+      )}
       <div style={{ ...S.card, background:"linear-gradient(135deg,rgba(232,184,75,0.08),rgba(232,184,75,0.02))", border:`1px solid rgba(232,184,75,0.2)`, marginBottom:20 }}>
         <div style={{ display:"grid", gridTemplateColumns:cols, gap:8, fontSize:11, color:"#556", fontWeight:700, letterSpacing:1, padding:"0 4px 8px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
           <span>#</span><span>PARTICIPANTE</span><span style={{textAlign:"center"}}>PTS</span>
           {!mobile && <><span style={{textAlign:"center"}}>ACERTOS</span><span style={{textAlign:"center"}}>PALPITES</span></>}
         </div>
-        {ranking.map((p, i) => (
+        {ranking.map((p, i) => {
+          const posChange = (p.prevRank != null) ? p.prevRank - (i+1) : null;
+          return (
           <div key={p.id} style={{
             display:"grid", gridTemplateColumns:cols, gap:8,
             alignItems:"center", padding:"10px 4px",
             borderBottom: i < ranking.length-1 ? "1px solid rgba(255,255,255,0.04)" : "none",
             background: i===0 ? "rgba(232,184,75,0.04)" : "none",
           }}>
-            <span style={{ fontSize:mobile?15:18, textAlign:"center" }}>{medals[i] || `${i+1}`}</span>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:1 }}>
+              <span style={{ fontSize:mobile?15:18 }}>{medals[i] || `${i+1}`}</span>
+              {posChange !== null && posChange !== 0 && (
+                <span style={{ fontSize:9, fontWeight:700, lineHeight:1, color:posChange>0?"#2ecc71":"#e74c3c" }}>
+                  {posChange>0 ? `↑${posChange}` : `↓${Math.abs(posChange)}`}
+                </span>
+              )}
+            </div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <Avatar participant={p} size={mobile?26:32} />
               <div>
                 <div style={{ fontWeight:700, fontSize:mobile?13:14 }}>{p.name}</div>
                 {mobile && <div style={{ fontSize:11, color:"#8a9" }}>{p.correct} acertos · {p.preds}/{ALL_MATCHES.length}</div>}
+                {hasDelta && p.phasePts != null && (
+                  <div style={{ fontSize:10, color:p.phasePts>0?"#2ecc71":"#556" }}>
+                    {p.phasePts>0?`+${p.phasePts} pts`:"0 pts"} na fase
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ textAlign:"center" }}>
@@ -1027,10 +1133,12 @@ function RankingTab({ ranking, participants, predictions, extraPicks }) {
               <div style={{ textAlign:"center", fontSize:13, color:"#667" }}>{p.preds}/{ALL_MATCHES.length}</div>
             </>}
           </div>
-        ))}
+          );
+        })}
       </div>
       <SectionTitle icon="📊" title="Sistema de Pontuação" />
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+      <div style={{ fontSize:11, color:"#556", letterSpacing:1, marginBottom:6, paddingLeft:2 }}>FASE DE GRUPOS</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
         {[
           { icon:"✅", label:"Resultado certo (V/E/D)", pts:POINTS_CONFIG.result },
           { icon:"🎯", label:"Placar exato (bônus)", pts:POINTS_CONFIG.exact },
@@ -1043,6 +1151,42 @@ function RankingTab({ ranking, participants, predictions, extraPicks }) {
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:S.gold }}>{r.pts}<span style={{fontSize:12}}> pts</span></div>
           </div>
         ))}
+      </div>
+      <div style={{ fontSize:11, color:"#556", letterSpacing:1, marginBottom:6, paddingLeft:2 }}>MATA-MATA — sem pênaltis</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+        {[
+          { icon:"🏆", label:"Resultado certo", pts:"3" },
+          { icon:"🎯", label:"Placar exato (+bônus/fase)", pts:"5+" },
+        ].map(r => (
+          <div key={r.label} style={{ ...S.card, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:20 }}>{r.icon}</span>
+            <div style={{ flex:1, fontSize:12, color:"#aab" }}>{r.label}</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:S.gold }}>{r.pts}<span style={{fontSize:12}}> pts</span></div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize:11, color:"#556", letterSpacing:1, marginBottom:6, paddingLeft:2 }}>MATA-MATA — pênaltis</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+        {[
+          { icon:"🤏", label:"Empate, errou quem passa", pts:"1" },
+          { icon:"✅", label:"Classificado certo", pts:"2" },
+          { icon:"🏆", label:"Classificado + resultado", pts:"3" },
+          { icon:"🎯", label:"Placar exato (+bônus/fase)", pts:"5+" },
+        ].map(r => (
+          <div key={r.label} style={{ ...S.card, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:20 }}>{r.icon}</span>
+            <div style={{ flex:1, fontSize:12, color:"#aab" }}>{r.label}</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:S.gold }}>{r.pts}<span style={{fontSize:12}}> pts</span></div>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...S.card, background:"rgba(232,184,75,0.04)", border:"1px solid rgba(232,184,75,0.15)", marginBottom:14 }}>
+        <div style={{ fontSize:11, color:S.gold, fontWeight:700, marginBottom:4 }}>Bônus de fase (placar exato)</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {[["Rodada 32","5"],["Oitavas","6"],["Quartas","7"],["Semis/3º","8"],["Final","9"]].map(([label,pts]) => (
+            <div key={label} style={{ fontSize:11, color:"#aab" }}>{label}: <span style={{ color:S.gold, fontWeight:700 }}>{pts}pts</span></div>
+          ))}
+        </div>
       </div>
 
       {participants.length > 0 && (

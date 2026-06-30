@@ -1,3 +1,6 @@
+// Cravada bonus per KO phase: +1 per round beyond R32 (r32=0, r16=1, qf=2, sf/third=3, final=4)
+export const KO_PHASE_BONUS = { r32:0, r16:1, qf:2, sf:3, third:3, final:4 };
+
 export const BRACKET_ROUNDS = [
   { id:"r32",   slug:"round-of-32",    label:"Rodada de 32", slots:16 },
   { id:"r16",   slug:"round-of-16",    label:"Oitavas",      slots:8  },
