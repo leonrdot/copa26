@@ -543,8 +543,9 @@ export default function BolaoApp() {
       if (predRegTime === "D")       return 1; // predicted draw but wrong team
       return 0;
     } else {
-      if (gotExact)                  return 5 + phaseBonus;
-      if (gotAdvance)                return 3;
+      if (gotExact)                   return 5 + phaseBonus;
+      if (gotAdvance && gotRegTime)   return 3;
+      if (gotAdvance)                 return 2; // right team but predicted draw for a reg-time win
       return 0;
     }
   }
@@ -647,7 +648,7 @@ export default function BolaoApp() {
 
   const deltaPhase = completedPhases.length >= 1 ? completedPhases[completedPhases.length-1] : null;
   const deltaLabel = deltaPhase
-    ? (deltaPhase.startsWith("md") ? `Rodada ${deltaPhase[2]}` : (BRACKET_ROUNDS.find(r=>r.id===deltaPhase)?.label||deltaPhase))
+    ? (deltaPhase.startsWith("md") ? `Grupos – Rodada ${deltaPhase[2]}` : (BRACKET_ROUNDS.find(r=>r.id===deltaPhase)?.label||deltaPhase))
     : null;
   const phasePts = {};
   const phaseRankBefore = {};
