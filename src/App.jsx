@@ -646,7 +646,23 @@ export default function BolaoApp() {
     return done;
   })();
 
-  const deltaPhase = completedPhases.length >= 1 ? completedPhases[completedPhases.length-1] : null;
+  // "current phase" = has at least one result but not fully done; fall back to last completed
+  const currentPhase = (() => {
+    for (const md of [1,2,3]) {
+      const ms = ALL_MATCHES.filter(m=>m.md===md);
+      const anyDone = ms.some(m=>storedResults[m.id]);
+      const allDone = ms.every(m=>storedResults[m.id]);
+      if (anyDone && !allDone) return `md${md}`;
+    }
+    for (const round of BRACKET_ROUNDS) {
+      const ms = effectiveKnockoutMatches?.[round.id] || [];
+      const anyDone = ms.some(m=>m.winner);
+      const allDone = ms.length > 0 && ms.every(m=>m.winner);
+      if (anyDone && !allDone) return round.id;
+    }
+    return null;
+  })();
+  const deltaPhase = currentPhase ?? (completedPhases.length >= 1 ? completedPhases[completedPhases.length-1] : null);
   const deltaLabel = deltaPhase
     ? (deltaPhase.startsWith("md") ? `Grupos – Rodada ${deltaPhase[2]}` : (BRACKET_ROUNDS.find(r=>r.id===deltaPhase)?.label||deltaPhase))
     : null;
