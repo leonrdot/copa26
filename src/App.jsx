@@ -1172,7 +1172,8 @@ function RankingTab({ ranking, participants, predictions, extraPicks, deltaLabel
       <div style={{ fontSize:11, color:"#556", letterSpacing:1, marginBottom:6, paddingLeft:2 }}>MATA-MATA — sem pênaltis</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
         {[
-          { icon:"🏆", label:"Resultado certo", pts:"3" },
+          { icon:"✅", label:"Classificado certo (botou empate)", pts:"2" },
+          { icon:"🏆", label:"Classificado certo + direção certa", pts:"3" },
           { icon:"🎯", label:"Placar exato (+bônus/fase)", pts:"5+" },
         ].map(r => (
           <div key={r.label} style={{ ...S.card, display:"flex", alignItems:"center", gap:10 }}>
@@ -1866,7 +1867,7 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
 
       {canEdit && scoreDerived === "D" && (
         <div style={{ marginTop:8, fontSize:10, color:"#f39c12", textAlign:"center" }}>
-          Placar empatado: escolha abaixo quem passa nos pênaltis/prorrogação.
+          Placar empatado: escolha abaixo quem passa nos pênaltis.
         </div>
       )}
 
