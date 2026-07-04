@@ -1753,6 +1753,11 @@ function BracketTab({ bracket, apiStatus, now, activePid, participants, predicti
   );
 }
 
+// TEMP: manual reopen for a bet forgotten before lock — remove once used
+const TEMP_REOPEN_MATCHES = [
+  { round: "r16", teams: ["CAN", "MAR"] },
+];
+
 function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabled, participants, predictions, now, betsReleased }) {
   const mobile = useIsMobile();
   const homeName = getTeamName(match?.home, match?.homeName);
@@ -1763,9 +1768,11 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
   const isLive = match?.status === "live";
   const isFinal = match?.status === "final";
   const isLocked = hasStartTime && now >= lockTime;
-  const canEdit = !disabled && betsReleased && hasTeams && !isLive && !isFinal && !isLocked;
+  const forceOpen = TEMP_REOPEN_MATCHES.some(f => f.round === roundId && f.teams.includes(match?.home) && f.teams.includes(match?.away));
+  const displayWinner = forceOpen ? null : match?.winner;
+  const canEdit = !disabled && betsReleased && hasTeams && (forceOpen || (!isLive && !isFinal && !isLocked));
   const timeLeft = hasStartTime ? fmtCountdown(lockTime - now) : null;
-  const hasScore = match?.homeScore !== "" && match?.homeScore != null;
+  const hasScore = !forceOpen && match?.homeScore !== "" && match?.homeScore != null;
   const hasShootout = match?.homeShootout !== "" && match?.awayShootout !== ""
     && (match.homeShootout > 0 || match.awayShootout > 0);
   const [homeInput, setHomeInput] = useState(pred?.home ?? "");
@@ -1777,7 +1784,7 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
   }, [pred, matchKey]);
 
   const scoreDerived = deriveResult(homeInput, awayInput);
-  const actualResult = match?.winner === "home" ? "H" : match?.winner === "away" ? "A" : null;
+  const actualResult = displayWinner === "home" ? "H" : displayWinner === "away" ? "A" : null;
   const otherPreds = participants
     .filter(p => predictions[p.id]?.[matchKey])
     .map(p => ({ ...p, pred: predictions[p.id][matchKey] }));
@@ -1816,8 +1823,8 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
   return (
     <div style={{
       ...S.card,
-      border: pred ? "1px solid rgba(255,255,255,0.14)" : match?.winner ? "1px solid rgba(232,184,75,0.3)" : isLive ? "1px solid rgba(46,204,113,0.35)" : "1px solid rgba(255,255,255,0.08)",
-      background: match?.winner ? "rgba(232,184,75,0.04)" : isLive ? "rgba(46,204,113,0.05)" : "rgba(255,255,255,0.04)",
+      border: pred ? "1px solid rgba(255,255,255,0.14)" : displayWinner ? "1px solid rgba(232,184,75,0.3)" : isLive ? "1px solid rgba(46,204,113,0.35)" : "1px solid rgba(255,255,255,0.08)",
+      background: displayWinner ? "rgba(232,184,75,0.04)" : isLive ? "rgba(46,204,113,0.05)" : "rgba(255,255,255,0.04)",
       transition:"all 0.15s",
     }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
@@ -1835,13 +1842,13 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
       <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:10 }}>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
           {match?.home ? <FlagImg code={match.home} size={mobile ? 34 : 40} /> : <div style={{ width:40, height:27, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
-          <span style={{ fontSize:mobile?11:13, fontWeight: match?.winner==="home" ? 700 : 500, color: match?.winner==="home" ? S.gold : "#aab", textAlign:"center", lineHeight:1.2 }}>
+          <span style={{ fontSize:mobile?11:13, fontWeight: displayWinner==="home" ? 700 : 500, color: displayWinner==="home" ? S.gold : "#aab", textAlign:"center", lineHeight:1.2 }}>
             {homeName}
           </span>
         </div>
 
         <div style={{ textAlign:"center", minWidth:76 }}>
-          {(isLive || isFinal || hasScore) ? (
+          {(!forceOpen && (isLive || isFinal || hasScore)) ? (
             <div>
               <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color: match?.winner ? S.gold : S.silver, letterSpacing:2 }}>
                 {hasScore ? `${match.homeScore} – ${match.awayScore}` : "VS"}
@@ -1859,7 +1866,7 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
 
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
           {match?.away ? <FlagImg code={match.away} size={mobile ? 34 : 40} /> : <div style={{ width:40, height:27, background:"rgba(255,255,255,0.06)", borderRadius:4 }} />}
-          <span style={{ fontSize:mobile?11:13, fontWeight: match?.winner==="away" ? 700 : 500, color: match?.winner==="away" ? S.gold : "#aab", textAlign:"center", lineHeight:1.2 }}>
+          <span style={{ fontSize:mobile?11:13, fontWeight: displayWinner==="away" ? 700 : 500, color: displayWinner==="away" ? S.gold : "#aab", textAlign:"center", lineHeight:1.2 }}>
             {awayName}
           </span>
         </div>
@@ -1921,15 +1928,15 @@ function KnockoutMatchCard({ roundId, idx, match, matchKey, pred, onPred, disabl
       {canEdit && timeLeft && (
         <div style={{ marginTop:8, fontSize:10, color:"#667", textAlign:"center" }}>⏳ fecha em {timeLeft}</div>
       )}
-      {match?.winner && (
+      {displayWinner && (
         <div style={{ marginTop:8, fontSize:11, color:S.gold, textAlign:"center", letterSpacing:0.5 }}>
-          ✓ Classificado: {match.winner==="home" ? homeName : awayName}
+          ✓ Classificado: {displayWinner==="home" ? homeName : awayName}
         </div>
       )}
       {match?.venue && (
         <div style={{ marginTop:7, fontSize:9, color:"#445", textAlign:"center" }}>{match.venue}</div>
       )}
-      {(isLocked || isLive || isFinal) && otherPreds.length > 0 && (
+      {!forceOpen && (isLocked || isLive || isFinal) && otherPreds.length > 0 && (
         <div style={{ marginTop:10, display:"flex", gap:4, flexWrap:"wrap", justifyContent:"center" }}>
           {otherPreds.map(p => (
             <div key={p.id} style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.05)", borderRadius:20, padding:"3px 8px", fontSize:11, borderLeft:`3px solid ${p.color}` }}>
